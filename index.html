@@ -6,6 +6,7 @@
 <title>PetKOL Hub — 寵物網紅資料庫</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 * { font-family: 'Noto Sans TC', sans-serif; }
@@ -43,6 +44,34 @@ tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
 </style>
 </head>
 <body class="bg-slate-50 min-h-screen">
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="login-screen" style="position:fixed;inset:0;background:#f0fdfa;z-index:9999;display:flex;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:20px;padding:48px 40px;max-width:420px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.12);">
+    <div style="font-size:52px;margin-bottom:16px;">🐾</div>
+    <h1 style="font-size:24px;font-weight:700;color:#0f766e;margin-bottom:6px;">PetKOL Hub</h1>
+    <p style="font-size:13px;color:#9ca3af;margin-bottom:8px;">寵物網紅資料庫</p>
+    <p style="color:#6b7280;font-size:13px;margin-bottom:32px;">請使用公司 Google 帳號登入</p>
+    <div id="g_id_onload"
+      data-client_id="306706286763-06tntpe0ddckd82cfvhuht35qaotsb87.apps.googleusercontent.com"
+      data-callback="handleGoogleLogin"
+      data-auto_prompt="false">
+    </div>
+    <div style="display:flex;justify-content:center;">
+      <div class="g_id_signin"
+        data-type="standard"
+        data-size="large"
+        data-theme="outline"
+        data-text="signin_with"
+        data-shape="rectangular"
+        data-logo_alignment="left"
+        data-locale="zh-TW"
+        data-width="280">
+      </div>
+    </div>
+    <p id="login-error" style="color:#ef4444;font-size:12px;margin-top:16px;display:none;"></p>
+    <p style="color:#d1d5db;font-size:11px;margin-top:24px;">僅限 @tsagroup.com.tw 帳號</p>
+  </div>
+</div>
 
 <!-- ===== NAV ===== -->
 <nav class="bg-teal-700 text-white shadow-lg sticky top-0 z-40">
@@ -62,6 +91,12 @@ tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
       <button onclick="exportExcel()" class="bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition">📤 匯出</button>
       <button onclick="downloadTemplate()" title="下載 Excel 匯入範本" class="bg-teal-500 hover:bg-teal-400 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition">📋 下載範本</button>
       <button onclick="openAddModal()" class="bg-white text-teal-700 hover:bg-teal-50 px-4 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 transition">＋ 新增網紅</button>
+      <!-- 用戶資訊 -->
+      <div id="user-info" class="hidden items-center gap-2 ml-1 border-l border-teal-600 pl-3">
+        <img id="user-avatar" class="w-7 h-7 rounded-full border-2 border-teal-400" src="" alt="">
+        <span id="user-name" class="text-xs text-teal-200 max-w-[80px] truncate hidden lg:block"></span>
+        <button onclick="logout()" title="登出" class="text-teal-300 hover:text-white text-xs transition">登出</button>
+      </div>
     </div>
   </div>
 </nav>
@@ -623,6 +658,65 @@ tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
 
 <!-- ========== JAVASCRIPT ========== -->
 <script>
+// ===== GOOGLE AUTH =====
+const ALLOWED_DOMAIN = 'tsagroup.com.tw';
+
+function parseJwt(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(atob(base64).split('').map(c =>
+      '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+    ).join(''));
+    return JSON.parse(json);
+  } catch(e) { return null; }
+}
+
+function handleGoogleLogin(response) {
+  const payload = parseJwt(response.credential);
+  if (!payload) { showLoginError('登入失敗，請再試一次'); return; }
+  const email = payload.email || '';
+  if (!email.toLowerCase().endsWith('@' + ALLOWED_DOMAIN)) {
+    showLoginError('僅限 @' + ALLOWED_DOMAIN + ' 帳號登入，請切換正確帳號');
+    return;
+  }
+  const authData = { token: response.credential, email, name: payload.name || email, picture: payload.picture || '', exp: Date.now() + 7 * 24 * 60 * 60 * 1000 };
+  localStorage.setItem('petkol_auth', JSON.stringify(authData));
+  showApp(authData);
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function showApp(authData) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('user-name').textContent = authData.name;
+  if (authData.picture) document.getElementById('user-avatar').src = authData.picture;
+  document.getElementById('user-info').classList.remove('hidden');
+  document.getElementById('user-info').style.display = 'flex';
+  loadKOLs();
+}
+
+function logout() {
+  localStorage.removeItem('petkol_auth');
+  location.reload();
+}
+
+function checkAuth() {
+  try {
+    const raw = localStorage.getItem('petkol_auth');
+    if (!raw) return false;
+    const auth = JSON.parse(raw);
+    if (!auth || !auth.email || !auth.exp) return false;
+    if (Date.now() > auth.exp) { localStorage.removeItem('petkol_auth'); return false; }
+    if (!auth.email.toLowerCase().endsWith('@' + ALLOWED_DOMAIN)) return false;
+    return auth;
+  } catch(e) { return false; }
+}
+
 // ===== API =====
 const API_URL = 'https://script.google.com/macros/s/AKfycbyLMQOlYyO1f6tiXfdT2N3JIO-jG6vez6Vydc2MWYV3puzWnM2yDixcicEuhLo1c_83/exec';
 
@@ -1606,7 +1700,9 @@ function showToast(msg, type='info') {
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
-  loadKOLs();
+  const auth = checkAuth();
+  if (auth) { showApp(auth); }
+  // 未登入時 login-screen 預設顯示，GIS SDK 會自動渲染登入按鈕
 });
 </script>
 </body>
