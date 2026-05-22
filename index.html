@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PetKOL Hub — 寵物網紅資料庫</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { font-family: 'Noto Sans TC', sans-serif; }
+.brand-tab-btn { padding: 6px 16px; border-radius: 99px; font-size: 13px; font-weight: 500; color: #6b7280; transition: all .15s; white-space: nowrap; }
+.brand-tab-btn:hover { background: #f0fdfa; color: #0f766e; }
+.brand-tab-btn.active { background: #0d9488; color: white; }
+.filter-chip { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 500; border: 1.5px solid #e5e7eb; color: #6b7280; cursor: pointer; transition: all .15s; user-select: none; }
+.filter-chip:hover { border-color: #0d9488; color: #0d9488; }
+.filter-chip.active-filter { background: #0d9488; border-color: #0d9488; color: white; }
+.brand-tag { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+.status-badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+.star { color: #fbbf24; font-size: 13px; }
+.star.empty { color: #d1d5db; font-size: 13px; }
+.modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:50; display:flex; align-items:flex-start; justify-content:center; padding: 2vh 16px; overflow-y:auto; }
+.modal-box { background:white; border-radius:16px; width:100%; max-width:780px; box-shadow: 0 25px 60px rgba(0,0,0,.2); margin:auto; }
+.form-label { display: block; font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 4px; }
+.form-input { width:100%; border:1.5px solid #e5e7eb; border-radius:8px; padding:7px 11px; font-size:13px; color:#1f2937; transition:border-color .15s; outline:none; }
+.form-input:focus { border-color:#0d9488; box-shadow: 0 0 0 3px rgba(13,148,136,.12); }
+.form-select { width:100%; border:1.5px solid #e5e7eb; border-radius:8px; padding:7px 11px; font-size:13px; color:#1f2937; background:white; outline:none; }
+.form-select:focus { border-color:#0d9488; }
+.section-title { font-size:12px; font-weight:700; color:#0d9488; letter-spacing:.08em; text-transform:uppercase; padding: 8px 0 6px; border-bottom: 1.5px solid #f0fdfa; margin-bottom:12px; }
+.star-input { font-size: 24px; cursor: pointer; color: #d1d5db; transition: color .1s; }
+.star-input.filled { color: #fbbf24; }
+tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:#f8fafc; }
+::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+.toggle { position:relative; width:42px; height:24px; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-slider { position:absolute; cursor:pointer; top:0;left:0;right:0;bottom:0; background:#e5e7eb; border-radius:24px; transition:.2s; }
+.toggle-slider:before { position:absolute; content:""; height:18px; width:18px; left:3px; bottom:3px; background:white; border-radius:50%; transition:.2s; }
+.toggle input:checked + .toggle-slider { background:#0d9488; }
+.toggle input:checked + .toggle-slider:before { transform:translateX(18px); }
+#toast { opacity:0; transition: opacity .3s; pointer-events:none; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- ===== NAV ===== -->
+<nav class="bg-teal-700 text-white shadow-lg sticky top-0 z-40">
+  <div class="max-w-screen-2xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">🐾</span>
+      <div>
+        <div class="font-bold text-base leading-tight">PetKOL Hub</div>
+        <div class="text-teal-300 text-xs leading-tight">寵物網紅資料庫</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap justify-end">
+      <span id="file-status" class="text-teal-300 text-xs hidden lg:block">資料儲存於本機</span>
+      <button onclick="openFilePicker()" title="從 OneDrive/本機載入 .json 資料庫" class="bg-teal-600 hover:bg-teal-500 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition">📂 載入</button>
+      <button onclick="saveToFile()" title="儲存至檔案（建議放 OneDrive 共用）" class="bg-teal-600 hover:bg-teal-500 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition">💾 儲存</button>
+      <button onclick="openImportModal()" class="bg-amber-500 hover:bg-amber-400 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition">📥 匯入 Excel</button>
+      <button onclick="exportExcel()" class="bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition">📤 匯出</button>
+      <button onclick="downloadTemplate()" title="下載 Excel 匯入範本" class="bg-teal-500 hover:bg-teal-400 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition">📋 下載範本</button>
+      <button onclick="openAddModal()" class="bg-white text-teal-700 hover:bg-teal-50 px-4 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 transition">＋ 新增網紅</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== BRAND TABS ===== -->
+<div class="bg-white border-b border-gray-100 sticky top-14 z-30 shadow-sm">
+  <div class="max-w-screen-2xl mx-auto px-4 flex items-center gap-1 h-12 overflow-x-auto">
+    <span class="text-gray-400 text-xs mr-1 shrink-0">品牌：</span>
+    <button class="brand-tab-btn active" data-brand="全部" onclick="setBrand('全部',this)">全部</button>
+    <button class="brand-tab-btn" data-brand="毛孩時代" onclick="setBrand('毛孩時代',this)">🐕 毛孩時代</button>
+    <button class="brand-tab-btn" data-brand="奧沛" onclick="setBrand('奧沛',this)">✨ 奧沛</button>
+    <button class="brand-tab-btn" data-brand="優固倍" onclick="setBrand('優固倍',this)">💪 優固倍</button>
+    <button class="brand-tab-btn" data-brand="愛旺斯" onclick="setBrand('愛旺斯',this)">❤️ 愛旺斯</button>
+    <div class="ml-auto shrink-0 flex items-center gap-2">
+      <input type="text" id="search-input" placeholder="🔍 搜尋暱稱、帳號、標籤..."
+        class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-60 focus:outline-none focus:ring-2 focus:ring-teal-400"
+        oninput="onSearch(this.value)">
+    </div>
+  </div>
+</div>
+
+<!-- ===== STATS BAR ===== -->
+<div id="stats-bar" class="max-w-screen-2xl mx-auto px-4 py-1 text-xs text-gray-500"></div>
+
+<!-- ===== MAIN LAYOUT ===== -->
+<div class="max-w-screen-2xl mx-auto px-4 pb-10 flex gap-4">
+
+  <!-- SIDEBAR FILTERS -->
+  <aside class="w-44 shrink-0">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sticky top-28">
+      <div class="flex items-center justify-between mb-4">
+        <span class="font-semibold text-sm text-gray-700">篩選條件</span>
+        <button onclick="resetFilters()" class="text-xs text-teal-600 hover:underline">重置</button>
+      </div>
+
+      <!-- 寵物種類 -->
+      <div class="mb-3">
+        <label class="text-xs font-bold text-gray-400 uppercase block mb-1">寵物種類</label>
+        <select id="filter-petType" class="form-select text-sm" onchange="setDropFilter('petType',this.value)">
+          <option value="">全部</option>
+          <option>貓</option>
+          <option>狗</option>
+          <option>貓&amp;狗</option>
+          <option>其他</option>
+        </select>
+      </div>
+
+      <!-- 主要平台 -->
+      <div class="mb-3">
+        <label class="text-xs font-bold text-gray-400 uppercase block mb-1">主要平台</label>
+        <select id="filter-platform" class="form-select text-sm" onchange="setDropFilter('platform',this.value)">
+          <option value="">全部</option>
+          <option>Instagram</option>
+          <option>Facebook</option>
+          <option>部落格</option>
+          <option>YouTube</option>
+          <option>TikTok</option>
+        </select>
+      </div>
+
+      <!-- 合作方式 -->
+      <div class="mb-3">
+        <label class="text-xs font-bold text-gray-400 uppercase block mb-1">合作方式</label>
+        <select id="filter-collabType" class="form-select text-sm" onchange="setDropFilter('collabType',this.value)">
+          <option value="">全部</option>
+          <option>部落格文章</option>
+          <option>圖文素材</option>
+          <option>影片素材</option>
+        </select>
+      </div>
+
+      <!-- 合作狀態 -->
+      <div class="mb-3">
+        <label class="text-xs font-bold text-gray-400 uppercase block mb-1">合作狀態</label>
+        <select id="filter-status" class="form-select text-sm" onchange="setDropFilter('status',this.value)">
+          <option value="">全部</option>
+          <option>潛在合作</option>
+          <option>聯繫中</option>
+          <option>合作中</option>
+          <option>已完成</option>
+          <option>黑名單</option>
+        </select>
+      </div>
+
+      <!-- 接受無酬 -->
+      <div class="mb-3">
+        <label class="text-xs font-bold text-gray-400 uppercase block mb-1">接受無酬</label>
+        <select id="filter-acceptFree" class="form-select text-sm" onchange="setDropFilter('acceptFree',this.value)">
+          <option value="">全部</option>
+          <option value="是">是</option>
+          <option value="否">否</option>
+        </select>
+      </div>
+
+      <!-- 禮盒發文 -->
+      <div class="mb-3">
+        <label class="text-xs font-bold text-gray-400 uppercase block mb-1">🎁 禮盒發文</label>
+        <select id="filter-giftBox" class="form-select text-sm" onchange="setDropFilter('giftBox',this.value)">
+          <option value="">全部</option>
+          <option value="有發文">曾收禮盒且有發文</option>
+          <option value="未發文">曾收禮盒但未發文</option>
+          <option value="未寄送">尚未寄送過</option>
+        </select>
+      </div>
+
+      <!-- 追蹤數 -->
+      <div class="mb-2">
+        <label class="text-xs font-bold text-gray-400 uppercase block mb-1">追蹤數範圍</label>
+        <input type="number" id="followers-min" placeholder="最小" class="form-input text-xs mb-1" style="padding:5px 8px;" oninput="onFollowersFilter()">
+        <input type="number" id="followers-max" placeholder="最大" class="form-input text-xs" style="padding:5px 8px;" oninput="onFollowersFilter()">
+      </div>
+    </div>
+  </aside>
+
+  <!-- TABLE AREA -->
+  <main class="flex-1 min-w-0">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th class="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase cursor-pointer" onclick="setSort('nickname')">
+                網紅 <span id="sort-nickname"></span>
+              </th>
+              <th class="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase cursor-pointer" onclick="setSort('mainPlatform')">平台</th>
+              <th class="px-3 py-3 text-right text-xs font-bold text-gray-500 uppercase cursor-pointer" onclick="setSort('followers')">
+                追蹤數 <span id="sort-followers"></span>
+              </th>
+              <th class="px-3 py-3 text-right text-xs font-bold text-gray-500 uppercase cursor-pointer" onclick="setSort('engagementRate')">互動率</th>
+              <th class="px-3 py-3 text-center text-xs font-bold text-gray-500 uppercase">寵物</th>
+              <th class="px-3 py-3 text-center text-xs font-bold text-gray-500 uppercase">合作方式</th>
+              <th class="px-3 py-3 text-center text-xs font-bold text-gray-500 uppercase">禮盒</th>
+              <th class="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase">品牌</th>
+              <th class="px-3 py-3 text-center text-xs font-bold text-gray-500 uppercase cursor-pointer" onclick="setSort('status')">狀態</th>
+              <th class="px-3 py-3 text-center text-xs font-bold text-gray-500 uppercase cursor-pointer" onclick="setSort('rating')">評分</th>
+              <th class="px-3 py-3 text-xs font-bold text-gray-500 uppercase">操作</th>
+            </tr>
+          </thead>
+          <tbody id="kol-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="pagination" class="mt-3 flex justify-center gap-2 text-sm text-gray-500"></div>
+  </main>
+</div>
+
+<!-- ========== MODAL: ADD/EDIT KOL ========== -->
+<div id="kol-modal" class="modal-bg hidden" onclick="if(event.target===this)hideModal('kol-modal')">
+  <div class="modal-box">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <h2 id="modal-title" class="text-lg font-bold text-gray-800"></h2>
+      <button onclick="hideModal('kol-modal')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+    </div>
+    <form id="kol-form" onsubmit="return false" class="px-6 py-4 max-h-[80vh] overflow-y-auto">
+
+      <!-- 基本資訊 -->
+      <div class="section-title">基本資訊</div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="form-label">暱稱 / 網紅名稱 <span class="text-red-500">*</span></label>
+          <input name="nickname" class="form-input" placeholder="例：小白的媽媽">
+        </div>
+        <div>
+          <label class="form-label">真實姓名</label>
+          <input name="realName" class="form-input" placeholder="例：王小明">
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div>
+          <label class="form-label">性別</label>
+          <select name="gender" class="form-select">
+            <option value="">未設定</option>
+            <option value="女">女</option>
+            <option value="男">男</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">合作狀態</label>
+          <select name="status" class="form-select">
+            <option>潛在合作</option><option>聯繫中</option><option>合作中</option>
+            <option>已完成</option><option>黑名單</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 寵物資訊 -->
+      <div class="section-title">寵物資訊</div>
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div>
+          <label class="form-label">寵物種類</label>
+          <select name="petType" class="form-select">
+            <option value="">未設定</option>
+            <option>貓</option><option>狗</option><option>貓&狗</option><option>其他</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">寵物名稱</label>
+          <input name="petName" class="form-input" placeholder="例：小白">
+        </div>
+        <div>
+          <label class="form-label">品種</label>
+          <input name="petBreed" class="form-input" placeholder="例：柴犬">
+        </div>
+      </div>
+
+      <!-- 帳號資訊 -->
+      <div class="section-title">帳號資訊</div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="form-label">主要平台 <span class="text-red-500">*</span></label>
+          <select name="mainPlatform" class="form-select">
+            <option value="">未設定</option>
+            <option>Instagram</option><option>Facebook</option>
+            <option>部落格</option><option>YouTube</option><option>TikTok</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Instagram 連結</label>
+          <input name="instagram" class="form-input" placeholder="https://instagram.com/...">
+        </div>
+        <div>
+          <label class="form-label">Facebook / 粉絲頁連結</label>
+          <input name="facebook" class="form-input" placeholder="https://facebook.com/...">
+        </div>
+        <div>
+          <label class="form-label">部落格連結</label>
+          <input name="blog" class="form-input" placeholder="https://...pixnet.net...">
+        </div>
+        <div>
+          <label class="form-label">YouTube 頻道</label>
+          <input name="youtube" class="form-input" placeholder="https://youtube.com/...">
+        </div>
+        <div>
+          <label class="form-label">TikTok 連結</label>
+          <input name="tiktok" class="form-input" placeholder="https://tiktok.com/@...">
+        </div>
+      </div>
+      <div class="grid grid-cols-4 gap-3 mb-4">
+        <div>
+          <label class="form-label">追蹤數</label>
+          <input name="followers" type="number" class="form-input" placeholder="50000">
+        </div>
+        <div>
+          <label class="form-label">互動率 (%)</label>
+          <input name="engagementRate" type="number" step="0.01" class="form-input" placeholder="3.5">
+        </div>
+        <div>
+          <label class="form-label">平均觀看數</label>
+          <input name="avgViews" type="number" class="form-input" placeholder="10000">
+        </div>
+        <div>
+          <label class="form-label">部落格月流量</label>
+          <input name="blogMonthlyViews" type="number" class="form-input" placeholder="5000">
+        </div>
+      </div>
+
+      <!-- 聯繫方式 -->
+      <div class="section-title">聯繫方式</div>
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div>
+          <label class="form-label">Email</label>
+          <input name="email" type="email" class="form-input" placeholder="name@gmail.com">
+        </div>
+        <div>
+          <label class="form-label">Line ID</label>
+          <input name="lineId" class="form-input" placeholder="line_id_here">
+        </div>
+        <div>
+          <label class="form-label">電話</label>
+          <input name="phone" class="form-input" placeholder="0912345678">
+        </div>
+      </div>
+
+      <!-- 收費資訊 -->
+      <div class="section-title">收費資訊</div>
+      <div class="grid grid-cols-3 gap-3 mb-3">
+        <div>
+          <label class="form-label">部落格文章（每篇）</label>
+          <input name="priceArticle" type="number" class="form-input" placeholder="0">
+        </div>
+        <div>
+          <label class="form-label">圖文素材（每篇）</label>
+          <input name="pricePhoto" type="number" class="form-input" placeholder="3000">
+        </div>
+        <div>
+          <label class="form-label">影片素材（每支）</label>
+          <input name="priceVideo" type="number" class="form-input" placeholder="8000">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">廣告主計費週期</label>
+        <select name="priceAdvertiser" class="form-select">
+          <option value="">未設定</option>
+          <option>按篇計費</option>
+          <option>月費</option>
+          <option>季費</option>
+          <option>按活動計費</option>
+          <option>買斷授權</option>
+          <option>無酬</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-3 mb-4">
+        <label class="toggle">
+          <input type="checkbox" name="acceptFree">
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="text-sm text-gray-600">接受無酬／體驗合作</span>
+      </div>
+
+      <!-- 合作評估 -->
+      <div class="section-title">合作評估</div>
+      <div class="mb-3">
+        <label class="form-label">合作方式（可複選）</label>
+        <div class="flex gap-3 flex-wrap">
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input type="checkbox" class="collab-check rounded" value="部落格文章">📄 部落格文章
+          </label>
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input type="checkbox" class="collab-check rounded" value="圖文素材">🖼️ 圖文素材
+          </label>
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input type="checkbox" class="collab-check rounded" value="影片素材">🎬 影片素材
+          </label>
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">曾合作品牌（可複選）</label>
+        <div class="flex gap-3 flex-wrap">
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input type="checkbox" class="brand-check rounded" value="毛孩時代">🐕 毛孩時代
+          </label>
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input type="checkbox" class="brand-check rounded" value="奧沛">✨ 奧沛
+          </label>
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input type="checkbox" class="brand-check rounded" value="優固倍">💪 優固倍
+          </label>
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input type="checkbox" class="brand-check rounded" value="愛旺斯">❤️ 愛旺斯
+          </label>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3 mb-3">
+        <div>
+          <label class="form-label">整體評分</label>
+          <div id="star-input-row" class="flex gap-1 mt-1">
+            <span class="star-input" data-val="1" onclick="setStarRating(1)">★</span>
+            <span class="star-input" data-val="2" onclick="setStarRating(2)">★</span>
+            <span class="star-input" data-val="3" onclick="setStarRating(3)">★</span>
+            <span class="star-input" data-val="4" onclick="setStarRating(4)">★</span>
+            <span class="star-input" data-val="5" onclick="setStarRating(5)">★</span>
+          </div>
+          <input type="hidden" name="rating" id="rating-val" value="0">
+        </div>
+        <div>
+          <label class="form-label">配合度</label>
+          <select name="reliability" class="form-select">
+            <option value="">未評</option>
+            <option>高</option><option>中</option><option>低</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">內容品質</label>
+          <select name="contentQuality" class="form-select">
+            <option value="">未評</option>
+            <option>優</option><option>良</option><option>普通</option><option>差</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 收件資訊 -->
+      <div class="section-title">收件資訊</div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="form-label">收件名</label>
+          <input name="shippingName" class="form-input" placeholder="收件人姓名">
+        </div>
+        <div>
+          <label class="form-label">收件電話</label>
+          <input name="shippingPhone" class="form-input" placeholder="0912345678">
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3 mb-3">
+        <div class="col-span-1">
+          <label class="form-label">郵遞區號</label>
+          <input name="shippingPostcode" class="form-input" placeholder="100">
+        </div>
+        <div class="col-span-2">
+          <label class="form-label">收件地址</label>
+          <input name="shippingAddress" class="form-input" placeholder="台北市中正區...">
+        </div>
+      </div>
+
+      <!-- 標籤與備註 -->
+      <div class="section-title">標籤與備註</div>
+      <div class="mb-3">
+        <label class="form-label">標籤（輸入後按 Enter 新增）</label>
+        <div id="tags-container" class="flex flex-wrap gap-1 mb-1.5"></div>
+        <input type="text" id="tag-input" class="form-input" placeholder="例：治癒系、保健品、室外型"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();addTag()}">
+      </div>
+      <div class="mb-2">
+        <label class="form-label">備註</label>
+        <textarea name="notes" rows="3" class="form-input" placeholder="合作紀錄、特殊需求、注意事項..."></textarea>
+      </div>
+    </form>
+    <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+      <button onclick="hideModal('kol-modal')" class="px-5 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">取消</button>
+      <button onclick="saveKOL()" class="px-6 py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL: DETAIL ========== -->
+<div id="detail-modal" class="modal-bg hidden" onclick="if(event.target===this)hideModal('detail-modal')">
+  <div class="modal-box max-w-2xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <h2 id="detail-title" class="text-lg font-bold text-gray-800"></h2>
+      <div class="flex gap-2">
+        <button id="detail-edit-btn" class="text-sm text-teal-600 hover:underline px-3 py-1">✏️ 編輯</button>
+        <button onclick="hideModal('detail-modal')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+      </div>
+    </div>
+    <div id="detail-content" class="px-6 py-4 max-h-[80vh] overflow-y-auto"></div>
+  </div>
+</div>
+
+<!-- ========== MODAL: IMPORT ========== -->
+<div id="import-modal" class="modal-bg hidden" onclick="if(event.target===this)hideModal('import-modal')">
+  <div class="modal-box max-w-2xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <h2 class="text-lg font-bold text-gray-800">📥 匯入 Excel</h2>
+      <button onclick="hideModal('import-modal')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+    </div>
+    <div class="px-6 py-5">
+
+      <!-- Step 1: Download template -->
+      <div class="flex items-start gap-3 mb-5">
+        <div class="bg-teal-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">1</div>
+        <div class="flex-1">
+          <div class="font-semibold text-sm text-gray-700 mb-1">先下載範本，照欄位填入資料</div>
+          <button onclick="downloadTemplate()" class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+            📋 下載 Excel 範本
+          </button>
+          <!-- Column reference table -->
+          <div class="mt-3 rounded-lg border border-gray-200 overflow-hidden">
+            <table class="w-full text-xs">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-3 py-2 text-left font-bold text-gray-500">欄位名稱（Excel 第一列）</th>
+                  <th class="px-3 py-2 text-left font-bold text-gray-500">說明</th>
+                  <th class="px-3 py-2 text-center font-bold text-gray-500">必填</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr class="bg-yellow-50"><td class="px-3 py-1.5 font-semibold text-gray-700">暱稱</td><td class="px-3 py-1.5 text-gray-500">網紅帳號名稱</td><td class="px-3 py-1.5 text-center text-red-500 font-bold">✓</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">真實姓名</td><td class="px-3 py-1.5 text-gray-500">本名</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">寵物種類</td><td class="px-3 py-1.5 text-gray-500">貓 / 狗 / 貓&狗</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">主要平台</td><td class="px-3 py-1.5 text-gray-500">Instagram / Facebook / 部落格 / YouTube / TikTok</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">Instagram</td><td class="px-3 py-1.5 text-gray-500">IG 連結，例：https://instagram.com/xxx</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">部落格</td><td class="px-3 py-1.5 text-gray-500">部落格網址</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">追蹤數</td><td class="px-3 py-1.5 text-gray-500">數字，例：50000</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">互動率(%)</td><td class="px-3 py-1.5 text-gray-500">數字，例：3.5（不用加 %）</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">Email / Line ID / 電話</td><td class="px-3 py-1.5 text-gray-500">聯絡方式</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">圖文收費 / 影片收費 / 文章收費</td><td class="px-3 py-1.5 text-gray-500">數字（新台幣），例：3000</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">廣告主計費週期</td><td class="px-3 py-1.5 text-gray-500">按篇計費 / 月費 / 季費 / 按活動計費 / 買斷授權 / 無酬</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">接受無酬</td><td class="px-3 py-1.5 text-gray-500">是 / 否</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">合作方式</td><td class="px-3 py-1.5 text-gray-500">部落格文章,圖文素材,影片素材（逗號分隔多個）</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">合作品牌</td><td class="px-3 py-1.5 text-gray-500">毛孩時代,奧沛,優固倍,愛旺斯（逗號分隔）</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">狀態</td><td class="px-3 py-1.5 text-gray-500">潛在合作 / 聯繫中 / 合作中 / 已完成 / 黑名單</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">收件名 / 收件電話 / 收件地址</td><td class="px-3 py-1.5 text-gray-500">寄送樣品用</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-3 py-1.5 text-gray-700">備註</td><td class="px-3 py-1.5 text-gray-500">任何補充說明</td><td class="px-3 py-1.5 text-center text-gray-300">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Upload -->
+      <div class="flex items-start gap-3 mb-4">
+        <div class="bg-teal-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</div>
+        <div class="flex-1">
+          <div class="font-semibold text-sm text-gray-700 mb-2">填好後上傳 Excel 檔案</div>
+          <label class="inline-flex items-center gap-2 border-2 border-dashed border-teal-300 rounded-xl px-5 py-3 text-sm text-teal-600 hover:border-teal-500 cursor-pointer transition">
+            📤 選擇 Excel 檔案（.xlsx / .xls / .csv）
+            <input type="file" id="import-file-input" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleImportFile(this)">
+          </label>
+        </div>
+      </div>
+
+      <div id="import-preview" class="text-sm"></div>
+    </div>
+    <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+      <button onclick="hideModal('import-modal')" class="px-5 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">取消</button>
+      <button id="confirm-import-btn" onclick="confirmImport()" class="px-6 py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold hidden">✅ 確認匯入</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL: GIFT BOX ========== -->
+<div id="giftbox-modal" class="modal-bg hidden" onclick="if(event.target===this)hideModal('giftbox-modal')">
+  <div class="modal-box max-w-md">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <h2 id="giftbox-modal-title" class="text-base font-bold text-gray-800">🎁 新增禮盒紀錄</h2>
+      <button onclick="hideModal('giftbox-modal')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+    </div>
+    <div class="px-6 py-4">
+      <input type="hidden" id="gb-kol-id">
+      <input type="hidden" id="gb-record-id">
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="form-label">活動名稱 <span class="text-red-500">*</span></label>
+          <select id="gb-event" class="form-select">
+            <option value="">請選擇</option>
+            <option>聖誕節</option>
+            <option>萬聖節</option>
+            <option>過年</option>
+            <option>雙十一</option>
+            <option>母親節</option>
+            <option>中秋節</option>
+            <option>其他</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">寄送日期</label>
+          <input type="date" id="gb-date" class="form-input">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">是否發文</label>
+        <div class="flex gap-3 mt-1">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="gb-posted" value="待確認" checked class="accent-teal-600"> 待確認
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="gb-posted" value="有" class="accent-teal-600">
+            <span class="text-green-600 font-medium">✅ 有發文</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="gb-posted" value="無" class="accent-teal-600">
+            <span class="text-red-500 font-medium">❌ 沒發文</span>
+          </label>
+        </div>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">備註</label>
+        <input type="text" id="gb-notes" class="form-input" placeholder="例：發了兩則限時動態">
+      </div>
+    </div>
+    <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+      <button onclick="hideModal('giftbox-modal')" class="px-5 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">取消</button>
+      <button onclick="saveGiftBoxRecord()" class="px-6 py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl text-white shadow-lg text-sm bg-teal-600"></div>
+
+<!-- ========== JAVASCRIPT ========== -->
+<script>
+// ===== CONSTANTS =====
+const BRANDS = ['毛孩時代','奧沛','優固倍','愛旺斯'];
+const PLATFORMS = ['Instagram','Facebook','部落格','YouTube','TikTok'];
+const STATUSES = ['潛在合作','聯繫中','合作中','已完成','黑名單'];
+const PET_TYPES = ['貓','狗','貓&狗','其他'];
+const COLLAB_TYPES = ['部落格文章','圖文素材','影片素材'];
+const REGIONS = ['北部','中部','南部','東部','海外'];
+
+// ===== STATE =====
+let db = { kols: [] };
+let fileHandle = null;
+let currentEditId = null;
+let currentTags = [];
+let importedRows = [];
+let currentPage = 1;
+const PAGE_SIZE = 50;
+
+let filters = {
+  search:'', brand:'全部',
+  petType:'', platform:'', collabType:'', status:'',
+  acceptFree: '', giftBox: '',
+  followersMin:'', followersMax:''
+};
+let sortState = { field:'updatedAt', dir:'desc' };
+
+// ===== STORAGE =====
+function loadData() {
+  try {
+    const raw = localStorage.getItem('petkol_db');
+    if (raw) { db = JSON.parse(raw); db.kols = db.kols || []; }
+  } catch(e) { db = { kols: [] }; }
+}
+
+function saveData() {
+  db.updated = new Date().toISOString();
+  localStorage.setItem('petkol_db', JSON.stringify(db));
+  if (fileHandle) saveToFile();
+}
+
+async function openFilePicker() {
+  if (!window.showOpenFilePicker) {
+    showToast('請使用 Chrome/Edge 瀏覽器開啟此功能','warning');
+    return;
+  }
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types:[{description:'PetKOL 資料庫',accept:{'application/json':['.json']}}]
+    });
+    fileHandle = handle;
+    const file = await handle.getFile();
+    const text = await file.text();
+    db = JSON.parse(text);
+    db.kols = db.kols || [];
+    saveData();
+    document.getElementById('file-status').textContent = `已載入：${file.name}`;
+    currentPage = 1;
+    render();
+    showToast(`✅ 載入成功，共 ${db.kols.length} 位網紅`,'success');
+  } catch(e) {
+    if (e.name !== 'AbortError') showToast('載入失敗：'+e.message,'error');
+  }
+}
+
+async function saveToFile() {
+  if (!window.showSaveFilePicker && !fileHandle) {
+    showToast('資料已儲存至瀏覽器本機','info'); return;
+  }
+  try {
+    if (!fileHandle) {
+      fileHandle = await window.showSaveFilePicker({
+        suggestedName:'petkol_database.json',
+        types:[{description:'PetKOL 資料庫',accept:{'application/json':['.json']}}]
+      });
+    }
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(db, null, 2));
+    await writable.close();
+    const f = await fileHandle.getFile();
+    document.getElementById('file-status').textContent = `已儲存：${f.name}`;
+    showToast('💾 儲存成功！','success');
+  } catch(e) {
+    if (e.name !== 'AbortError') showToast('儲存失敗：'+e.message,'error');
+  }
+}
+
+// ===== FILTER & SORT =====
+function getFiltered() {
+  let kols = [...db.kols];
+  const f = filters;
+
+  if (f.search) {
+    const q = f.search.toLowerCase();
+    kols = kols.filter(k =>
+      (k.nickname||'').toLowerCase().includes(q) ||
+      (k.realName||'').toLowerCase().includes(q) ||
+      (k.instagram||'').toLowerCase().includes(q) ||
+      (k.blog||'').toLowerCase().includes(q) ||
+      (k.email||'').toLowerCase().includes(q) ||
+      (k.tags||[]).some(t => t.toLowerCase().includes(q))
+    );
+  }
+  if (f.brand !== '全部') kols = kols.filter(k =>
+    (k.brands||[]).some(b => b === f.brand || b.includes(f.brand) || f.brand.includes(b)));
+  if (f.petType) kols = kols.filter(k => k.petType === f.petType);
+  if (f.platform) kols = kols.filter(k => {
+    const norm = normalizePlatform(k.mainPlatform||'');
+    if (norm === f.platform) return true;
+    // mainPlatform 空白時，改查有沒有對應連結
+    if (!norm) {
+      const linkMap = { Instagram: k.instagram, Facebook: k.facebook, '部落格': k.blog, YouTube: k.youtube, TikTok: k.tiktok };
+      return !!linkMap[f.platform];
+    }
+    return false;
+  });
+  if (f.collabType) kols = kols.filter(k => (k.collabTypes||[]).includes(f.collabType));
+  if (f.status) kols = kols.filter(k => k.status === f.status);
+  if (f.acceptFree === '是') kols = kols.filter(k => k.acceptFree === true);
+  if (f.acceptFree === '否') kols = kols.filter(k => !k.acceptFree);
+  if (f.giftBox === '有發文') kols = kols.filter(k => (k.giftBoxRecords||[]).some(r => r.posted === '有'));
+  if (f.giftBox === '未發文') kols = kols.filter(k => (k.giftBoxRecords||[]).length > 0 && !(k.giftBoxRecords||[]).some(r => r.posted === '有'));
+  if (f.giftBox === '未寄送') kols = kols.filter(k => !(k.giftBoxRecords||[]).length);
+  if (f.followersMin !== '') kols = kols.filter(k => (k.followers||0) >= parseInt(f.followersMin));
+  if (f.followersMax !== '') kols = kols.filter(k => (k.followers||0) <= parseInt(f.followersMax));
+
+  const { field, dir } = sortState;
+  kols.sort((a, b) => {
+    let av = a[field]||'', bv = b[field]||'';
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return dir==='asc' ? -1 : 1;
+    if (av > bv) return dir==='asc' ? 1 : -1;
+    return 0;
+  });
+  return kols;
+}
+
+// ===== RENDER =====
+function render() {
+  const filtered = getFiltered();
+  renderStats(filtered);
+  renderTable(filtered);
+}
+
+function renderStats(kols) {
+  const total = kols.length;
+  const cats = kols.filter(k => (k.petType||'').includes('貓')).length;
+  const dogs = kols.filter(k => (k.petType||'').includes('狗')).length;
+  const byPlat = {};
+  PLATFORMS.forEach(p => byPlat[p] = kols.filter(k => k.mainPlatform===p).length);
+  const totalF = kols.reduce((s,k) => s+(k.followers||0), 0);
+
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="flex flex-wrap gap-3 items-center text-xs text-gray-500 py-2">
+      <span class="font-bold text-teal-700">共 <b class="text-lg text-teal-600">${total}</b> 位</span>
+      <span>🐱 貓 ${cats}</span><span>🐶 狗 ${dogs}</span>
+      <span class="text-gray-200">|</span>
+      ${PLATFORMS.map(p=>`<span>${platIcon(p)} ${p==='部落格'?'Blog':p} ${byPlat[p]}</span>`).join('')}
+      <span class="text-gray-200">|</span>
+      <span>總追蹤數 ${fmtNum(totalF)}</span>
+    </div>`;
+}
+
+function renderTable(kols) {
+  const tbody = document.getElementById('kol-tbody');
+  const start = (currentPage-1)*PAGE_SIZE;
+  const paged = kols.slice(start, start+PAGE_SIZE);
+
+  if (!kols.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-16 text-gray-400">
+      <div class="text-4xl mb-2">🐾</div>
+      <div class="font-medium">找不到符合條件的網紅</div>
+      <div class="text-sm mt-1">調整篩選條件，或 <button onclick="openAddModal()" class="text-teal-600 underline">新增第一位網紅</button></div>
+    </td></tr>`;
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = paged.map(k => {
+    const brands = (k.brands||[]).map(b=>`<span class="brand-tag ${brandColor(b)}">${b}</span>`).join(' ');
+    const collab = (k.collabTypes||[]).map(ct=>collabIcon(ct)).join('');
+    const link = mainLink(k);
+    return `<tr class="kol-row border-b border-gray-50" onclick="openDetailModal('${k.id}')">
+      <td class="px-3 py-2.5">
+        <div class="flex items-center gap-2">
+          <span class="text-lg">${petEmoji(k.petType)}</span>
+          <div>
+            <div class="font-semibold text-gray-800 text-sm">${esc(k.nickname)||'(未命名)'}</div>
+            <div class="text-xs text-gray-400">${esc(k.realName)||''}</div>
+          </div>
+        </div>
+      </td>
+      <td class="px-3 py-2.5">
+        <div class="text-sm">${platIcon(normalizePlatform(k.mainPlatform||''))} ${normalizePlatform(k.mainPlatform||'')||'-'}</div>
+        ${link?`<a href="${esc(link)}" target="_blank" onclick="event.stopPropagation()" class="text-xs text-teal-600 hover:underline truncate block max-w-32">${esc(link).replace(/https?:\/\/(www\.)?/,'').substring(0,28)}</a>`:''}
+      </td>
+      <td class="px-3 py-2.5 text-right text-sm font-medium">${k.followers?fmtNum(k.followers):'-'}</td>
+      <td class="px-3 py-2.5 text-right text-sm">${k.engagementRate?k.engagementRate+'%':'-'}</td>
+      <td class="px-3 py-2.5 text-center text-sm">${k.petType||'-'}</td>
+      <td class="px-3 py-2.5 text-center text-lg">${collab||'-'}</td>
+      <td class="px-3 py-2.5 text-center text-sm" onclick="event.stopPropagation()">${giftBoxBadge(k)}</td>
+      <td class="px-3 py-2.5">${brands||'-'}</td>
+      <td class="px-3 py-2.5 text-center">${statusBadge(k.status)}</td>
+      <td class="px-3 py-2.5 text-center">${renderStars(k.rating||0)}</td>
+      <td class="px-3 py-2.5" onclick="event.stopPropagation()">
+        <div class="flex gap-1">
+          <button onclick="openEditModal('${k.id}')" class="hover:bg-teal-50 p-1.5 rounded transition text-sm" title="編輯">✏️</button>
+          <button onclick="deleteKOL('${k.id}')" class="hover:bg-red-50 p-1.5 rounded transition text-sm" title="刪除">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Pagination
+  const totalPages = Math.ceil(kols.length / PAGE_SIZE);
+  if (totalPages <= 1) { document.getElementById('pagination').innerHTML=''; return; }
+  let pages = '';
+  for (let i=1; i<=totalPages; i++) {
+    pages += `<button onclick="goPage(${i})" class="w-8 h-8 rounded-lg text-sm ${i===currentPage?'bg-teal-600 text-white':'bg-white text-gray-600 border border-gray-200 hover:border-teal-400'}">${i}</button>`;
+  }
+  document.getElementById('pagination').innerHTML = `<div class="flex gap-1">${pages}</div><span class="text-gray-400 text-xs self-center ml-2">共 ${kols.length} 筆</span>`;
+}
+
+function goPage(p) { currentPage = p; render(); window.scrollTo(0,0); }
+
+// ===== MODAL ADD/EDIT =====
+function openAddModal() {
+  currentEditId = null;
+  document.getElementById('modal-title').textContent = '新增網紅';
+  document.getElementById('kol-form').reset();
+  document.querySelectorAll('.brand-check,.collab-check').forEach(cb=>cb.checked=false);
+  setStarRating(0);
+  currentTags = [];
+  renderTagsInput([]);
+  showModal('kol-modal');
+}
+
+function openEditModal(id) {
+  const k = db.kols.find(k=>k.id===id);
+  if (!k) return;
+  currentEditId = id;
+  document.getElementById('modal-title').textContent = '編輯網紅';
+  const f = document.getElementById('kol-form');
+  ['nickname','realName','gender','petType','petName','petBreed','mainPlatform',
+   'instagram','facebook','blog','youtube','tiktok','email','lineId','phone',
+   'priceAdvertiser','status','reliability','contentQuality',
+   'shippingName','shippingPhone','shippingPostcode','shippingAddress','notes'].forEach(field => {
+    const el = f.querySelector(`[name="${field}"]`);
+    if (el) el.value = k[field]||'';
+  });
+  ['followers','engagementRate','avgViews','blogMonthlyViews','priceArticle','pricePhoto','priceVideo'].forEach(field => {
+    const el = f.querySelector(`[name="${field}"]`);
+    if (el) el.value = k[field]||'';
+  });
+  document.querySelectorAll('.brand-check').forEach(cb => cb.checked=(k.brands||[]).includes(cb.value));
+  document.querySelectorAll('.collab-check').forEach(cb => cb.checked=(k.collabTypes||[]).includes(cb.value));
+  const afEl = f.querySelector('[name="acceptFree"]');
+  if (afEl) afEl.checked = k.acceptFree||false;
+  setStarRating(k.rating||0);
+  currentTags = [...(k.tags||[])];
+  renderTagsInput(currentTags);
+  showModal('kol-modal');
+}
+
+function saveKOL() {
+  const f = document.getElementById('kol-form');
+  const data = {};
+  ['nickname','realName','gender','petType','petName','petBreed','mainPlatform',
+   'instagram','facebook','blog','youtube','tiktok','email','lineId','phone',
+   'priceAdvertiser','status','reliability','contentQuality',
+   'shippingName','shippingPhone','shippingPostcode','shippingAddress','notes'].forEach(field => {
+    const el = f.querySelector(`[name="${field}"]`);
+    data[field] = el ? el.value.trim() : '';
+  });
+  ['followers','engagementRate','avgViews','blogMonthlyViews','priceArticle','pricePhoto','priceVideo'].forEach(field => {
+    const el = f.querySelector(`[name="${field}"]`);
+    data[field] = el && el.value ? parseFloat(el.value) : 0;
+  });
+  data.rating = parseInt(document.getElementById('rating-val').value)||0;
+  data.brands = Array.from(document.querySelectorAll('.brand-check:checked')).map(cb=>cb.value);
+  data.collabTypes = Array.from(document.querySelectorAll('.collab-check:checked')).map(cb=>cb.value);
+  const afEl = f.querySelector('[name="acceptFree"]');
+  data.acceptFree = afEl ? afEl.checked : false;
+  data.tags = [...currentTags];
+
+  if (!data.nickname) { showToast('請填寫網紅暱稱','error'); return; }
+  if (data.mainPlatform) data.mainPlatform = normalizePlatform(data.mainPlatform);
+  // 若未填主要平台，依連結自動推斷
+  if (!data.mainPlatform) {
+    if (data.instagram) data.mainPlatform = 'Instagram';
+    else if (data.facebook) data.mainPlatform = 'Facebook';
+    else if (data.youtube) data.mainPlatform = 'YouTube';
+    else if (data.tiktok) data.mainPlatform = 'TikTok';
+    else if (data.blog) data.mainPlatform = '部落格';
+  }
+  if (!data.mainPlatform) { showToast('請選擇主要平台','error'); return; }
+  const now = new Date().toISOString();
+  if (currentEditId) {
+    const idx = db.kols.findIndex(k=>k.id===currentEditId);
+    db.kols[idx] = { ...db.kols[idx], ...data, updatedAt: now };
+    showToast('✅ 已更新','success');
+  } else {
+    data.id = 'kol_'+Date.now()+'_'+Math.random().toString(36).substr(2,4);
+    data.createdAt = now; data.updatedAt = now;
+    db.kols.unshift(data);
+    showToast('✅ 已新增網紅！','success');
+  }
+  saveData(); hideModal('kol-modal'); render();
+}
+
+function deleteKOL(id) {
+  const k = db.kols.find(k=>k.id===id);
+  if (!k || !confirm(`確定要刪除「${k.nickname}」？此動作無法復原。`)) return;
+  db.kols = db.kols.filter(k=>k.id!==id);
+  saveData(); render();
+  showToast('已刪除','info');
+}
+
+// ===== DETAIL MODAL =====
+function openDetailModal(id) {
+  const k = db.kols.find(k=>k.id===id);
+  if (!k) return;
+  document.getElementById('detail-title').textContent = `${petEmoji(k.petType)} ${k.nickname||''}`;
+  document.getElementById('detail-edit-btn').onclick = () => { hideModal('detail-modal'); openEditModal(id); };
+
+  const dl = (label, val) => val ? `<div class="flex gap-2 py-1 border-b border-gray-50">
+    <span class="text-xs text-gray-400 w-24 shrink-0">${label}</span>
+    <span class="text-sm text-gray-700 flex-1">${esc(String(val))}</span>
+  </div>` : '';
+
+  const linkDl = (label, url) => url ? `<div class="flex gap-2 py-1 border-b border-gray-50">
+    <span class="text-xs text-gray-400 w-24 shrink-0">${label}</span>
+    <a href="${esc(url)}" target="_blank" class="text-sm text-teal-600 hover:underline truncate">${esc(url)}</a>
+  </div>` : '';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="grid grid-cols-2 gap-6">
+      <div>
+        <div class="text-xs font-bold text-gray-400 uppercase mb-2">基本</div>
+        ${dl('真實姓名', k.realName)} ${dl('性別', k.gender)}
+        ${dl('寵物種類', k.petType)} ${dl('寵物名稱', k.petName)} ${dl('品種', k.petBreed)}
+        <div class="section-title mt-3">聯繫</div>
+        ${dl('Email', k.email)} ${dl('Line ID', k.lineId)} ${dl('電話', k.phone)}
+        <div class="section-title mt-3">收件</div>
+        ${dl('收件名', k.shippingName)} ${dl('收件電話', k.shippingPhone)} ${dl('郵遞區號', k.shippingPostcode)} ${dl('地址', k.shippingAddress)}
+      </div>
+      <div>
+        <div class="text-xs font-bold text-gray-400 uppercase mb-2">帳號</div>
+        ${dl('主要平台', k.mainPlatform)}
+        ${linkDl('Instagram', k.instagram)} ${linkDl('Facebook', k.facebook)}
+        ${linkDl('部落格', k.blog)} ${linkDl('YouTube', k.youtube)} ${linkDl('TikTok', k.tiktok)}
+        ${dl('追蹤數', k.followers ? fmtNum(k.followers) : '')}
+        ${dl('互動率', k.engagementRate ? k.engagementRate+'%' : '')}
+        ${dl('平均觀看數', k.avgViews ? fmtNum(k.avgViews) : '')}
+        ${dl('Blog月流量', k.blogMonthlyViews ? fmtNum(k.blogMonthlyViews) : '')}
+        <div class="section-title mt-3">收費</div>
+        ${dl('文章', k.priceArticle ? 'NT$'+k.priceArticle.toLocaleString() : '')}
+        ${dl('圖文', k.pricePhoto ? 'NT$'+k.pricePhoto.toLocaleString() : '')}
+        ${dl('影片', k.priceVideo ? 'NT$'+k.priceVideo.toLocaleString() : '')}
+        ${dl('廣告主說明', k.priceAdvertiser)}
+        ${dl('接受無酬', k.acceptFree ? '✅ 是' : '❌ 否')}
+      </div>
+    </div>
+    <div class="mt-4 grid grid-cols-2 gap-4">
+      <div>
+        <div class="text-xs font-bold text-gray-400 uppercase mb-2">合作資訊</div>
+        <div class="flex flex-wrap gap-1 mb-2">
+          ${(k.brands||[]).map(b=>`<span class="brand-tag ${brandColor(b)}">${b}</span>`).join('')||'<span class="text-gray-400 text-xs">無</span>'}
+        </div>
+        <div class="flex gap-2 mb-2 text-lg">${(k.collabTypes||[]).map(ct=>collabIcon(ct)).join(' ')||'<span class="text-gray-400 text-xs text-sm">無</span>'}</div>
+        ${dl('狀態', k.status)} ${dl('配合度', k.reliability)} ${dl('內容品質', k.contentQuality)}
+        <div class="flex items-center gap-2 py-1">
+          <span class="text-xs text-gray-400 w-24">評分</span>
+          <span>${renderStars(k.rating||0)}</span>
+        </div>
+      </div>
+      <div>
+        <div class="text-xs font-bold text-gray-400 uppercase mb-2">標籤</div>
+        <div class="flex flex-wrap gap-1 mb-3">
+          ${(k.tags||[]).map(t=>`<span class="bg-teal-50 text-teal-700 text-xs px-2 py-0.5 rounded-full">${esc(t)}</span>`).join('')||'<span class="text-gray-400 text-xs">無</span>'}
+        </div>
+        <div class="text-xs font-bold text-gray-400 uppercase mb-2">備註</div>
+        <div class="text-sm text-gray-600 whitespace-pre-wrap">${esc(k.notes)||'－'}</div>
+        <div class="text-xs text-gray-300 mt-3">更新：${k.updatedAt?k.updatedAt.substring(0,10):''}</div>
+      </div>
+    </div>
+
+    <!-- 禮盒紀錄 -->
+    <div class="mt-5 border-t border-gray-100 pt-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-xs font-bold text-gray-500 uppercase tracking-wide">🎁 禮盒寄送紀錄</div>
+        <button onclick="openGiftBoxModal('${k.id}')" class="text-xs bg-teal-600 hover:bg-teal-500 text-white px-3 py-1.5 rounded-lg transition">＋ 新增紀錄</button>
+      </div>
+      <div id="gift-box-list">${renderGiftBoxList(k)}</div>
+    </div>
+  `;
+  showModal('detail-modal');
+}
+
+// ===== IMPORT =====
+const EXCEL_MAP = {
+  '暱稱':'nickname','網紅名稱':'nickname','網紅暱稱':'nickname',
+  '真實姓名':'realName','姓名':'realName',
+  '性別':'gender',
+  '寵物種類':'petType','寵物類型':'petType',
+  '寵物名':'petName','寵物名稱':'petName',
+  '品種':'petBreed','寵物品種':'petBreed',
+  '主要平台':'mainPlatform','平台':'mainPlatform',
+  'Instagram':'instagram','IG':'instagram','IG連結':'instagram',
+  'Facebook':'facebook','FB':'facebook','FB連結':'facebook','粉絲頁':'facebook',
+  '部落格':'blog','部落格網址':'blog','Blog':'blog',
+  'YouTube':'youtube','YT':'youtube',
+  'TikTok':'tiktok',
+  'Email':'email','電子郵件':'email',
+  'Line ID':'lineId','LINE ID':'lineId','Line':'lineId','Line Id':'lineId',
+  '電話':'phone','手機':'phone','手機號碼':'phone',
+  '追蹤數':'followers','粉絲數':'followers',
+  '互動率':'engagementRate','互動率(%)':'engagementRate',
+  '平均觀看數':'avgViews','Reels平均觀看':'avgViews',
+  '部落格月流量':'blogMonthlyViews','月流量':'blogMonthlyViews',
+  '文章收費':'priceArticle','部落格收費':'priceArticle',
+  '圖文收費':'pricePhoto',
+  '影片收費':'priceVideo',
+  '廣告主收費':'priceAdvertiser','廣告主收費方式':'priceAdvertiser','每篇收費方式':'priceAdvertiser',
+  '廣告主計費週期':'priceAdvertiser','計費週期':'priceAdvertiser','計費方式':'priceAdvertiser',
+  '接受無酬':'acceptFree',
+  '合作方式':'collabTypes',
+  '合作品牌':'brands',
+  '狀態':'status','合作狀態':'status',
+  '評分':'rating',
+  '配合度':'reliability',
+  '內容品質':'contentQuality',
+  '收件名':'shippingName',
+  '收件電話':'shippingPhone',
+  '郵遞區號':'shippingPostcode','郵區':'shippingPostcode',
+  '收件地址':'shippingAddress','地址':'shippingAddress',
+  '標籤':'tags',
+  '備註':'notes'
+};
+
+function handleImportFile(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      importedRows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      const preview = importedRows.slice(0,5).map(mapRow);
+      document.getElementById('import-preview').innerHTML = `
+        <div class="text-sm text-gray-600 mb-2">找到 <b>${importedRows.length}</b> 筆資料，預覽前 5 筆：</div>
+        <div class="overflow-x-auto rounded-lg border border-gray-100">
+          <table class="text-xs w-full">
+            <thead class="bg-gray-50"><tr>
+              <th class="px-2 py-1.5 text-left">暱稱</th><th class="px-2 py-1.5">平台</th>
+              <th class="px-2 py-1.5 text-right">追蹤數</th><th class="px-2 py-1.5">寵物</th>
+              <th class="px-2 py-1.5">品牌</th><th class="px-2 py-1.5">狀態</th>
+            </tr></thead>
+            <tbody>${preview.map(r=>`<tr class="border-t border-gray-50">
+              <td class="px-2 py-1">${esc(r.nickname||'-')}</td>
+              <td class="px-2 py-1 text-center">${esc(r.mainPlatform||'-')}</td>
+              <td class="px-2 py-1 text-right">${r.followers?fmtNum(r.followers):'-'}</td>
+              <td class="px-2 py-1 text-center">${esc(r.petType||'-')}</td>
+              <td class="px-2 py-1">${(r.brands||[]).join(',')}</td>
+              <td class="px-2 py-1">${esc(r.status||'-')}</td>
+            </tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+      document.getElementById('confirm-import-btn').classList.remove('hidden');
+      showToast(`讀取成功，共 ${importedRows.length} 筆`,'info');
+    } catch(err) { showToast('讀取失敗：'+err.message,'error'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// 平台標準名稱對照
+const PLATFORM_ALIASES = {
+  'Instagram': ['Instagram','instagram','IG','ig','Ig','insta','ig連結'],
+  'Facebook':  ['Facebook','facebook','FB','fb','粉絲頁','粉專'],
+  '部落格':    ['部落格','blog','Blog','BLOG','pixnet','Pixnet','痞客邦','方格子','vocus'],
+  'YouTube':   ['YouTube','youtube','Youtube','YT','yt'],
+  'TikTok':    ['TikTok','tiktok','Tiktok','TT','tt','抖音'],
+};
+
+function normalizePlatform(raw) {
+  const s = String(raw).trim();
+  for (const [platform, aliases] of Object.entries(PLATFORM_ALIASES)) {
+    if (aliases.some(a => s.toLowerCase() === a.toLowerCase() || s.toLowerCase().includes(a.toLowerCase()))) return platform;
+  }
+  return s;
+}
+
+// 品牌標準名稱對照（只要含有這些字就自動對應）
+const BRAND_ALIASES = {
+  '毛孩時代': ['毛孩時代','毛孩','MaoHai'],
+  '奧沛':     ['奧沛','OurPet','ourpet'],
+  '優固倍':   ['優固倍'],
+  '愛旺斯':   ['愛旺斯'],
+};
+
+function normalizeBrands(raw) {
+  const parts = String(raw).split(/[,，、\/\s]+/).map(s => s.trim()).filter(Boolean);
+  return parts.map(part => {
+    for (const [brand, aliases] of Object.entries(BRAND_ALIASES)) {
+      if (aliases.some(a => part.includes(a) || a.includes(part))) return brand;
+    }
+    return part; // 若無法對應，保留原字
+  });
+}
+
+function mapRow(row) {
+  const k = {};
+  Object.entries(row).forEach(([key, val]) => {
+    const field = EXCEL_MAP[key.trim()];
+    if (!field) return;
+    if (field === 'brands')
+      k[field] = val ? normalizeBrands(val) : [];
+    else if (field === 'mainPlatform')
+      k[field] = val ? normalizePlatform(val) : '';
+    else if (field === 'collabTypes' || field === 'tags')
+      k[field] = val ? String(val).split(/[,，、\/]/).map(s=>s.trim()).filter(Boolean) : [];
+    else if (field==='acceptFree')
+      k[field] = ['是','Y','y','true','1','yes','v','V'].includes(String(val).trim());
+    else if (['followers','engagementRate','avgViews','blogMonthlyViews','priceArticle','pricePhoto','priceVideo','rating'].includes(field))
+      k[field] = val ? parseFloat(String(val).replace(/[%,]/g,''))||0 : 0;
+    else
+      k[field] = val ? String(val).trim() : '';
+  });
+  return k;
+}
+
+function confirmImport() {
+  if (!importedRows.length) return;
+  const now = new Date().toISOString();
+  let added = 0;
+  importedRows.forEach(row => {
+    const k = mapRow(row);
+    // Skip blank rows, hint rows, and example rows
+    if (!k.nickname && !k.realName) return;
+    if ((k.nickname||'').startsWith('【') || (k.nickname||'').startsWith('範例')) return;
+    k.id = 'kol_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
+    k.createdAt = now; k.updatedAt = now;
+    db.kols.push(k);
+    added++;
+  });
+  saveData(); hideModal('import-modal');
+  currentPage = 1; render();
+  showToast(`✅ 成功匯入 ${added} 位網紅！`,'success');
+  document.getElementById('confirm-import-btn').classList.add('hidden');
+}
+
+// ===== EXPORT =====
+function exportExcel() {
+  const filtered = getFiltered();
+  const rows = filtered.map(k => ({
+    '暱稱':k.nickname||'','真實姓名':k.realName||'','性別':k.gender||'',
+    '寵物種類':k.petType||'','寵物名':k.petName||'','品種':k.petBreed||'',
+    '主要平台':k.mainPlatform||'','Instagram':k.instagram||'','Facebook':k.facebook||'',
+    '部落格':k.blog||'','YouTube':k.youtube||'','TikTok':k.tiktok||'',
+    'Email':k.email||'','Line ID':k.lineId||'','電話':k.phone||'',
+    '追蹤數':k.followers||0,'互動率(%)':k.engagementRate||0,
+    '平均觀看數':k.avgViews||0,'部落格月流量':k.blogMonthlyViews||0,
+    '文章收費':k.priceArticle||0,'圖文收費':k.pricePhoto||0,'影片收費':k.priceVideo||0,
+    '廣告主計費週期':k.priceAdvertiser||'','接受無酬':k.acceptFree?'是':'否',
+    '合作方式':(k.collabTypes||[]).join(','),'合作品牌':(k.brands||[]).join(','),
+    '狀態':k.status||'','評分':k.rating||0,'配合度':k.reliability||'','內容品質':k.contentQuality||'',
+    '收件名':k.shippingName||'','收件電話':k.shippingPhone||'','郵遞區號':k.shippingPostcode||'','收件地址':k.shippingAddress||'',
+    '標籤':(k.tags||[]).join(','),'備註':k.notes||''
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '網紅資料庫');
+  XLSX.writeFile(wb, `PetKOL_${new Date().toLocaleDateString('zh-TW').replace(/\//g,'-')}.xlsx`);
+  showToast(`📤 已匯出 ${rows.length} 筆`,'success');
+}
+
+function downloadTemplate() {
+  const HEADERS = [
+    '暱稱','真實姓名','性別','寵物種類','寵物名','品種',
+    '主要平台','Instagram','Facebook','部落格','YouTube','TikTok',
+    'Email','Line ID','電話',
+    '追蹤數','互動率(%)','平均觀看數','部落格月流量',
+    '文章收費','圖文收費','影片收費','廣告主計費週期','接受無酬',
+    '合作方式','合作品牌','狀態','評分','配合度','內容品質',
+    '收件名','收件電話','郵遞區號','收件地址','標籤','備註'
+  ];
+
+  // Row 2: 提示列（灰字說明可填入的值）
+  const hintRow = {
+    '暱稱':             '【必填】',
+    '性別':             '男 / 女',
+    '寵物種類':         '貓 / 狗 / 貓&狗 / 其他',
+    '主要平台':         'Instagram / Facebook / 部落格 / YouTube / TikTok',
+    '追蹤數':           '數字，例：50000',
+    '互動率(%)':        '數字，例：3.5（不用加%）',
+    '接受無酬':         '是 / 否',
+    '合作方式':         '部落格文章, 圖文素材, 影片素材（多個用逗號分隔）',
+    '合作品牌':         '毛孩時代 / 奧沛 / 優固倍 / 愛旺斯（多個用逗號分隔）',
+    '狀態':             '潛在合作 / 聯繫中 / 合作中 / 已完成 / 黑名單',
+    '評分':             '數字 1–5',
+    '配合度':           '高 / 中 / 低',
+    '內容品質':         '優 / 良 / 普通 / 差',
+    '廣告主計費週期':         '按篇計費 / 月費 / 季費 / 按活動計費 / 買斷授權 / 無酬',
+    '標籤':             '自由填寫，多個用逗號分隔，例：治癒系、保健品',
+  };
+  // Fill other keys with ''
+  HEADERS.forEach(h => { if (!(h in hintRow)) hintRow[h] = ''; });
+
+  // Row 3: 範例資料
+  const exampleRow = {
+    '暱稱': '範例網紅（此列可刪除）',
+    '真實姓名': '王小明',
+    '性別': '女',
+    '寵物種類': '狗',
+    '寵物名': '小白',
+    '品種': '柴犬',
+    '主要平台': 'Instagram',
+    'Instagram': 'https://instagram.com/example',
+    'Facebook': '',
+    '部落格': '',
+    'YouTube': '',
+    'TikTok': '',
+    'Email': 'example@gmail.com',
+    'Line ID': 'example123',
+    '電話': '0912345678',
+    '追蹤數': 50000,
+    '互動率(%)': 3.5,
+    '平均觀看數': 10000,
+    '部落格月流量': 0,
+    '文章收費': 0,
+    '圖文收費': 3000,
+    '影片收費': 8000,
+    '廣告主計費週期': '月費',
+    '接受無酬': '否',
+    '合作方式': '圖文素材,影片素材',
+    '合作品牌': '毛孩時代,奧沛',
+    '狀態': '合作中',
+    '評分': 4,
+    '配合度': '高',
+    '內容品質': '優',
+    '收件名': '王小明',
+    '收件電話': '0912345678',
+    '郵遞區號': '100',
+    '收件地址': '台北市中正區...',
+    '標籤': '狗糧,保健品,治癒系',
+    '備註': '配合度高，交稿快速'
+  };
+
+  // Build Sheet 1: 匯入資料
+  const ws1 = XLSX.utils.json_to_sheet([hintRow, exampleRow], { header: HEADERS });
+
+  // Style Row 2 (hint row = index 1, A2...) with light gray fill
+  const hintFill  = { patternType: 'solid', fgColor: { rgb: 'FFF3F3F3' } };
+  const hintFont  = { color: { rgb: 'FF999999' }, italic: true, sz: 10 };
+  const hdrFont   = { bold: true, color: { rgb: 'FF0F766E' }, sz: 11 };
+  const hdrFill   = { patternType: 'solid', fgColor: { rgb: 'FFE6FAF8' } };
+  const exFont    = { color: { rgb: 'FF374151' }, sz: 11 };
+
+  HEADERS.forEach((h, ci) => {
+    const colLetter = XLSX.utils.encode_col(ci);
+    const hdrCell  = colLetter + '1';
+    const hintCell = colLetter + '2';
+    const exCell   = colLetter + '3';
+    if (!ws1[hdrCell])  ws1[hdrCell]  = { t:'s', v: h };
+    if (!ws1[hintCell]) ws1[hintCell] = { t:'s', v: hintRow[h]||'' };
+    if (!ws1[exCell])   ws1[exCell]   = {};
+    ws1[hdrCell].s  = { font: hdrFont,  fill: hdrFill };
+    ws1[hintCell].s = { font: hintFont, fill: hintFill };
+    ws1[exCell].s   = { font: exFont };
+  });
+
+  // Set column widths
+  ws1['!cols'] = HEADERS.map(h => {
+    const wide = ['暱稱','主要平台','Instagram','Facebook','部落格','合作方式','合作品牌','廣告主計費週期','收件地址','備註','標籤'];
+    return { wch: wide.includes(h) ? 28 : 14 };
+  });
+  ws1['!rows'] = [{ hpt: 16 }, { hpt: 16 }, { hpt: 16 }];
+
+  // ── Sheet 2: 欄位說明 ──
+  const fieldGuide = [
+    { '欄位名稱':'暱稱',       '填寫規則':'自由填寫',                            '可填入的值':'任意文字',                                                 '備註':'唯一必填欄位' },
+    { '欄位名稱':'性別',       '填寫規則':'固定選項',                            '可填入的值':'男 / 女',                                                  '備註':'' },
+    { '欄位名稱':'寵物種類',   '填寫規則':'固定選項',                            '可填入的值':'貓 / 狗 / 貓&狗 / 其他',                                   '備註':'' },
+    { '欄位名稱':'主要平台',   '填寫規則':'固定選項',                            '可填入的值':'Instagram / Facebook / 部落格 / YouTube / TikTok',         '備註':'' },
+    { '欄位名稱':'追蹤數',     '填寫規則':'純數字',                              '可填入的值':'例：50000',                                                '備註':'不要加逗號或文字' },
+    { '欄位名稱':'互動率(%)',  '填寫規則':'純數字（不加%）',                     '可填入的值':'例：3.5',                                                  '備註':'' },
+    { '欄位名稱':'接受無酬',   '填寫規則':'固定選項',                            '可填入的值':'是 / 否',                                                  '備註':'' },
+    { '欄位名稱':'合作方式',   '填寫規則':'固定選項，多個用逗號分隔',            '可填入的值':'部落格文章, 圖文素材, 影片素材',                           '備註':'例：圖文素材,影片素材' },
+    { '欄位名稱':'合作品牌',   '填寫規則':'固定選項，多個用逗號分隔',            '可填入的值':'毛孩時代, 奧沛, 優固倍, 愛旺斯',                          '備註':'例：毛孩時代,奧沛' },
+    { '欄位名稱':'狀態',       '填寫規則':'固定選項',                            '可填入的值':'潛在合作 / 聯繫中 / 合作中 / 已完成 / 黑名單',             '備註':'' },
+    { '欄位名稱':'評分',       '填寫規則':'數字 1–5',                            '可填入的值':'1 / 2 / 3 / 4 / 5',                                       '備註':'' },
+    { '欄位名稱':'配合度',     '填寫規則':'固定選項',                            '可填入的值':'高 / 中 / 低',                                            '備註':'' },
+    { '欄位名稱':'內容品質',   '填寫規則':'固定選項',                            '可填入的值':'優 / 良 / 普通 / 差',                                     '備註':'' },
+    { '欄位名稱':'標籤',       '填寫規則':'自由填寫，多個用逗號分隔',            '可填入的值':'任意文字',                                                '備註':'例：治癒系,保健品' },
+    { '欄位名稱':'文章收費',   '填寫規則':'純數字（新台幣）',                    '可填入的值':'例：3000',                                                '備註':'無酬合作填 0' },
+    { '欄位名稱':'圖文收費',   '填寫規則':'純數字（新台幣）',                    '可填入的值':'例：3000',                                                '備註':'' },
+    { '欄位名稱':'影片收費',   '填寫規則':'純數字（新台幣）',                    '可填入的值':'例：8000',                                                '備註':'' },
+    { '欄位名稱':'廣告主計費週期',   '填寫規則':'固定選項',                            '可填入的值':'按篇計費 / 月費 / 季費 / 按活動計費 / 買斷授權 / 無酬',   '備註':'例：月費 NT$5,000 可寫在備註' },
+  ];
+
+  const ws2 = XLSX.utils.json_to_sheet(fieldGuide, {
+    header: ['欄位名稱','填寫規則','可填入的值','備註']
+  });
+  ws2['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 52 }, { wch: 20 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws1, '匯入資料');
+  XLSX.utils.book_append_sheet(wb, ws2, '欄位說明');
+  XLSX.writeFile(wb, 'PetKOL_匯入範本.xlsx');
+  showToast('📋 範本已下載，請看「欄位說明」分頁','info');
+}
+
+function openImportModal() {
+  importedRows = [];
+  document.getElementById('import-preview').innerHTML = '';
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('confirm-import-btn').classList.add('hidden');
+  showModal('import-modal');
+}
+
+// ===== TAGS =====
+function addTag() {
+  const input = document.getElementById('tag-input');
+  const val = input.value.trim();
+  if (!val || currentTags.includes(val)) { input.value=''; return; }
+  currentTags.push(val);
+  input.value = '';
+  renderTagsInput(currentTags);
+}
+
+function removeTag(tag) {
+  currentTags = currentTags.filter(t=>t!==tag);
+  renderTagsInput(currentTags);
+}
+
+function renderTagsInput(tags) {
+  currentTags = tags;
+  document.getElementById('tags-container').innerHTML = tags.map(t =>
+    `<span class="inline-flex items-center gap-1 bg-teal-100 text-teal-700 text-xs px-2 py-0.5 rounded-full">
+      ${esc(t)} <button type="button" onclick="removeTag('${esc(t)}')" class="hover:text-red-500 text-base leading-none">×</button>
+    </span>`
+  ).join('');
+}
+
+// ===== STAR RATING =====
+function setStarRating(val) {
+  document.getElementById('rating-val').value = val;
+  document.querySelectorAll('.star-input').forEach(s => {
+    s.classList.toggle('filled', parseInt(s.dataset.val) <= val);
+  });
+}
+
+// ===== FILTER ACTIONS =====
+function setBrand(brand, btn) {
+  filters.brand = brand;
+  document.querySelectorAll('.brand-tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentPage = 1; render();
+}
+
+function onSearch(val) { filters.search = val; currentPage = 1; render(); }
+
+function setDropFilter(type, val) {
+  filters[type] = val;
+  currentPage = 1; render();
+}
+
+function onFollowersFilter() {
+  filters.followersMin = document.getElementById('followers-min').value;
+  filters.followersMax = document.getElementById('followers-max').value;
+  currentPage = 1; render();
+}
+
+function resetFilters() {
+  filters = { search:'', brand: filters.brand, petType:'', platform:'', collabType:'', status:'', acceptFree:'', giftBox:'', followersMin:'', followersMax:'' };
+  document.getElementById('search-input').value = '';
+  document.getElementById('followers-min').value = '';
+  document.getElementById('followers-max').value = '';
+  ['petType','platform','collabType','status','acceptFree','giftBox'].forEach(id => {
+    const el = document.getElementById('filter-'+id);
+    if (el) el.value = '';
+  });
+  currentPage = 1; render();
+}
+
+function setSort(field) {
+  if (sortState.field === field) sortState.dir = sortState.dir==='asc'?'desc':'asc';
+  else { sortState.field = field; sortState.dir = 'asc'; }
+  document.querySelectorAll('[id^="sort-"]').forEach(el=>el.textContent='');
+  const el = document.getElementById('sort-'+field);
+  if (el) el.textContent = sortState.dir==='asc'?' ↑':' ↓';
+  render();
+}
+
+// ===== GIFT BOX =====
+const GIFT_BOX_EVENTS = ['聖誕節','萬聖節','過年','雙十一','母親節','中秋節','其他'];
+
+function giftBoxBadge(k) {
+  const records = k.giftBoxRecords || [];
+  if (!records.length) return '<span class="text-gray-300 text-xs">—</span>';
+  const hasPosted = records.some(r => r.posted === '有');
+  const allNo    = records.every(r => r.posted === '無');
+  const pending  = records.some(r => r.posted === '待確認');
+  if (hasPosted) return `<span title="曾發文 ${records.filter(r=>r.posted==='有').length}/${records.length} 次" class="text-green-500 font-bold text-base cursor-pointer" onclick="openDetailModal('${k.id}')">🎁✅</span>`;
+  if (allNo)     return `<span title="從未發文" class="text-red-400 text-base cursor-pointer" onclick="openDetailModal('${k.id}')">🎁❌</span>`;
+  return `<span title="待確認" class="text-amber-400 text-base cursor-pointer" onclick="openDetailModal('${k.id}')">🎁⏳</span>`;
+}
+
+function renderGiftBoxList(k) {
+  const records = (k.giftBoxRecords || []).slice().reverse();
+  if (!records.length) return '<div class="text-xs text-gray-400 py-2">尚無禮盒寄送紀錄</div>';
+  const postedColor = { '有':'bg-green-100 text-green-700', '無':'bg-red-100 text-red-600', '待確認':'bg-amber-100 text-amber-700' };
+  return `<div class="space-y-2">${records.map(r => `
+    <div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+      <div class="flex items-center gap-3">
+        <span class="text-sm font-medium text-gray-700">${esc(r.event)}</span>
+        <span class="text-xs text-gray-400">${r.date||''}</span>
+        <span class="text-xs px-2 py-0.5 rounded-full font-semibold ${postedColor[r.posted]||'bg-gray-100 text-gray-500'}">${r.posted||'待確認'}</span>
+        ${r.notes ? `<span class="text-xs text-gray-400">${esc(r.notes)}</span>` : ''}
+      </div>
+      <div class="flex gap-1 shrink-0">
+        <button onclick="openGiftBoxModal('${k.id}','${r.id}')" class="text-xs text-teal-600 hover:underline px-2">編輯</button>
+        <button onclick="deleteGiftBoxRecord('${k.id}','${r.id}')" class="text-xs text-red-400 hover:underline px-2">刪除</button>
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function openGiftBoxModal(kolId, recordId) {
+  document.getElementById('gb-kol-id').value = kolId;
+  document.getElementById('gb-record-id').value = recordId || '';
+  document.getElementById('gb-event').value = '';
+  document.getElementById('gb-date').value = '';
+  document.getElementById('gb-notes').value = '';
+  document.querySelectorAll('input[name="gb-posted"]').forEach(r => { r.checked = r.value === '待確認'; });
+
+  if (recordId) {
+    const k = db.kols.find(k => k.id === kolId);
+    const rec = (k?.giftBoxRecords||[]).find(r => r.id === recordId);
+    if (rec) {
+      document.getElementById('gb-event').value = rec.event || '';
+      document.getElementById('gb-date').value = rec.date || '';
+      document.getElementById('gb-notes').value = rec.notes || '';
+      document.querySelectorAll('input[name="gb-posted"]').forEach(r => { r.checked = r.value === rec.posted; });
+    }
+    document.getElementById('giftbox-modal-title').textContent = '🎁 編輯禮盒紀錄';
+  } else {
+    document.getElementById('giftbox-modal-title').textContent = '🎁 新增禮盒紀錄';
+  }
+  showModal('giftbox-modal');
+}
+
+function saveGiftBoxRecord() {
+  const kolId    = document.getElementById('gb-kol-id').value;
+  const recordId = document.getElementById('gb-record-id').value;
+  const event    = document.getElementById('gb-event').value;
+  const date     = document.getElementById('gb-date').value;
+  const posted   = document.querySelector('input[name="gb-posted"]:checked')?.value || '待確認';
+  const notes    = document.getElementById('gb-notes').value.trim();
+
+  if (!event) { showToast('請選擇活動名稱','error'); return; }
+
+  const k = db.kols.find(k => k.id === kolId);
+  if (!k) return;
+  if (!k.giftBoxRecords) k.giftBoxRecords = [];
+
+  if (recordId) {
+    const idx = k.giftBoxRecords.findIndex(r => r.id === recordId);
+    if (idx >= 0) k.giftBoxRecords[idx] = { ...k.giftBoxRecords[idx], event, date, posted, notes };
+  } else {
+    k.giftBoxRecords.push({ id:'gb_'+Date.now()+'_'+Math.random().toString(36).substr(2,4), event, date, posted, notes });
+  }
+  k.updatedAt = new Date().toISOString();
+  saveData();
+  hideModal('giftbox-modal');
+  // 重新渲染禮盒列表（detail modal 仍開著）
+  document.getElementById('gift-box-list').innerHTML = renderGiftBoxList(k);
+  render();
+  showToast('✅ 禮盒紀錄已儲存','success');
+}
+
+function deleteGiftBoxRecord(kolId, recordId) {
+  if (!confirm('確定要刪除這筆禮盒紀錄？')) return;
+  const k = db.kols.find(k => k.id === kolId);
+  if (!k) return;
+  k.giftBoxRecords = (k.giftBoxRecords||[]).filter(r => r.id !== recordId);
+  k.updatedAt = new Date().toISOString();
+  saveData();
+  document.getElementById('gift-box-list').innerHTML = renderGiftBoxList(k);
+  render();
+  showToast('已刪除','info');
+}
+
+// ===== MODAL UTILS =====
+function showModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function hideModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// ===== UTILITIES =====
+function fmtNum(n) {
+  if (!n && n!==0) return '';
+  if (n>=10000) return (n/10000).toFixed(1)+'萬';
+  return n.toLocaleString();
+}
+
+function petEmoji(t) {
+  if (!t) return '🐾';
+  if (t.includes('貓')&&t.includes('狗')) return '🐱🐶';
+  if (t.includes('貓')) return '🐱';
+  if (t.includes('狗')) return '🐶';
+  return '🐾';
+}
+
+function platIcon(p) {
+  return {Instagram:'📸',Facebook:'👥','部落格':'📝',YouTube:'🎥',TikTok:'🎵'}[p]||'🌐';
+}
+
+function collabIcon(ct) {
+  return {'部落格文章':'<span title="部落格文章">📄</span>','圖文素材':'<span title="圖文素材">🖼️</span>','影片素材':'<span title="影片素材">🎬</span>'}[ct]||'';
+}
+
+function brandColor(b) {
+  return {'毛孩時代':'bg-teal-100 text-teal-700','奧沛':'bg-purple-100 text-purple-700','優固倍':'bg-blue-100 text-blue-700','愛旺斯':'bg-rose-100 text-rose-700'}[b]||'bg-gray-100 text-gray-600';
+}
+
+function statusBadge(s) {
+  const c = {'潛在合作':'bg-gray-100 text-gray-600','聯繫中':'bg-yellow-100 text-yellow-700','合作中':'bg-green-100 text-green-700','已完成':'bg-blue-100 text-blue-700','黑名單':'bg-red-100 text-red-700'}[s]||'bg-gray-100 text-gray-500';
+  return `<span class="status-badge ${c}">${s||'未設定'}</span>`;
+}
+
+function renderStars(r) {
+  return Array.from({length:5},(_,i)=>`<span class="star${i<r?'':' empty'}">★</span>`).join('');
+}
+
+function mainLink(k) {
+  const m = {'Instagram':k.instagram,'Facebook':k.facebook,'部落格':k.blog,'YouTube':k.youtube,'TikTok':k.tiktok};
+  return m[k.mainPlatform]||k.instagram||k.blog||k.facebook||'';
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  const c = {success:'bg-green-600',error:'bg-red-600',info:'bg-teal-600',warning:'bg-amber-600'};
+  t.className = `fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl text-white shadow-xl text-sm ${c[type]||c.info}`;
+  t.textContent = msg; t.style.opacity='1';
+  setTimeout(()=>t.style.opacity='0', 3000);
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+  loadData();
+  render();
+});
+</script>
+</body>
+</html>
