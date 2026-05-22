@@ -660,6 +660,8 @@ tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
 <script>
 // ===== GOOGLE AUTH =====
 const ALLOWED_DOMAIN = 'tsagroup.com.tw';
+    const ADMIN_EMAILS = ['jason@tsagroup.com.tw'];
+    let currentUserEmail = '';
 
 function parseJwt(token) {
   try {
@@ -692,6 +694,7 @@ function showLoginError(msg) {
 }
 
 function showApp(authData) {
+      currentUserEmail = (authData.email || '').toLowerCase();
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('user-name').textContent = authData.name;
   if (authData.picture) document.getElementById('user-avatar').src = authData.picture;
@@ -946,7 +949,7 @@ function renderTable(kols) {
       <td class="px-3 py-2.5" onclick="event.stopPropagation()">
         <div class="flex gap-1">
           <button onclick="openEditModal('${k.id}')" class="hover:bg-teal-50 p-1.5 rounded transition text-sm" title="編輯">✏️</button>
-          <button onclick="deleteKOL('${k.id}')" class="hover:bg-red-50 p-1.5 rounded transition text-sm" title="刪除">🗑️</button>
+          ${ADMIN_EMAILS.includes(currentUserEmail) ? `<button onclick="deleteKOL('${k.id}')" class="hover:bg-red-50 p-1.5 rounded transition text-sm" title="刪除">🗑️</button>` : ''}
         </div>
       </td>
     </tr>`;
@@ -1288,6 +1291,17 @@ async function confirmImport() {
     k.createdAt = now; k.updatedAt = now;
     newKols.push(k);
   });
+  // ── 重複偵測：以「收件名」比對現有資料 ──
+  const existingNames = new Set(kols.map(k => (k.shippingName||'').trim()).filter(Boolean));
+  const duplicates = newKols.filter(k => { const n=(k.shippingName||'').trim(); return n && existingNames.has(n); });
+  if (duplicates.length > 0) {
+    const list = duplicates.map(k => '• ' + (k.nickname||k.shippingName) + '（收件名：' + k.shippingName + '）').join('\n');
+    const choice = confirm('⚠️ 發現 ' + duplicates.length + ' 位網紅可能已存在系統中（依收件人姓名比對）：\n\n' + list + '\n\n點「確定」→ 仍然全部匙入（包含重複）\n點「取消」→ 僅匙入非重複的 ' + (newKols.length - duplicates.length) + ' 位');
+    if (!choice) {
+      const dupNames = new Set(duplicates.map(k => (k.shippingName||'').trim()));
+      newKols.splice(0, newKols.length, ...newKols.filter(k => !dupNames.has((k.shippingName||'').trim())));
+    }
+  }
   kols.push(...newKols);
   hideModal('import-modal');
   currentPage = 1; render();
