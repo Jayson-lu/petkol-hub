@@ -623,6 +623,34 @@ tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
 
 <!-- ========== JAVASCRIPT ========== -->
 <script>
+// ===== API =====
+const API_URL = 'https://script.google.com/macros/s/AKfycbyLMQOlYyO1f6tiXfdT2N3JIO-jG6vez6Vydc2MWYV3puzWnM2yDixcicEuhLo1c_83/exec';
+
+// ── Google Sheets API ──────────────────────────────
+async function apiGet() {
+  const res = await fetch(API_URL + '?action=getAll');
+  const data = await res.json();
+  return data.kols || [];
+}
+async function apiSave(kol) {
+  await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'save', kol })
+  });
+}
+async function apiDelete(id) {
+  await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'delete', id })
+  });
+}
+async function apiBulkSave(kols) {
+  await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'bulkSave', kols })
+  });
+}
+
 // ===== CONSTANTS =====
 const BRANDS = ['毛孩時代','奧沛','優固倍','愛旺斯'];
 const PLATFORMS = ['Instagram','Facebook','部落格','YouTube','TikTok'];
@@ -632,7 +660,8 @@ const COLLAB_TYPES = ['部落格文章','圖文素材','影片素材'];
 const REGIONS = ['北部','中部','南部','東部','海外'];
 
 // ===== STATE =====
-let db = { kols: [] };
+let kols = [];
+let db = { get kols() { return kols; }, set kols(v) { kols = v; } }; // 向後相容 db.kols 的呼叫
 let fileHandle = null;
 let currentEditId = null;
 let currentTags = [];
@@ -649,17 +678,16 @@ let filters = {
 let sortState = { field:'updatedAt', dir:'desc' };
 
 // ===== STORAGE =====
-function loadData() {
+async function loadKOLs() {
   try {
-    const raw = localStorage.getItem('petkol_db');
-    if (raw) { db = JSON.parse(raw); db.kols = db.kols || []; }
-  } catch(e) { db = { kols: [] }; }
-}
-
-function saveData() {
-  db.updated = new Date().toISOString();
-  localStorage.setItem('petkol_db', JSON.stringify(db));
-  if (fileHandle) saveToFile();
+    showToast('載入資料中...', 'info');
+    kols = await apiGet();
+    render();
+    showToast('資料載入完成', 'success');
+  } catch(e) {
+    showToast('載入失敗，請重試', 'error');
+    console.error(e);
+  }
 }
 
 async function openFilePicker() {
@@ -674,13 +702,13 @@ async function openFilePicker() {
     fileHandle = handle;
     const file = await handle.getFile();
     const text = await file.text();
-    db = JSON.parse(text);
-    db.kols = db.kols || [];
-    saveData();
+    const parsed = JSON.parse(text);
+    kols = parsed.kols || [];
     document.getElementById('file-status').textContent = `已載入：${file.name}`;
     currentPage = 1;
     render();
-    showToast(`✅ 載入成功，共 ${db.kols.length} 位網紅`,'success');
+    showToast(`✅ 載入成功，共 ${kols.length} 位網紅，同步至雲端中...`,'success');
+    try { await apiBulkSave(kols); showToast('✅ 已同步至 Google Sheets','success'); } catch(e) { showToast('雲端同步失敗','error'); }
   } catch(e) {
     if (e.name !== 'AbortError') showToast('載入失敗：'+e.message,'error');
   }
@@ -698,7 +726,7 @@ async function saveToFile() {
       });
     }
     const writable = await fileHandle.createWritable();
-    await writable.write(JSON.stringify(db, null, 2));
+    await writable.write(JSON.stringify({ kols }, null, 2));
     await writable.close();
     const f = await fileHandle.getFile();
     document.getElementById('file-status').textContent = `已儲存：${f.name}`;
@@ -886,7 +914,7 @@ function openEditModal(id) {
   showModal('kol-modal');
 }
 
-function saveKOL() {
+async function saveKOL() {
   const f = document.getElementById('kol-form');
   const data = {};
   ['nickname','realName','gender','petType','petName','petBreed','mainPlatform',
@@ -920,24 +948,29 @@ function saveKOL() {
   if (!data.mainPlatform) { showToast('請選擇主要平台','error'); return; }
   const now = new Date().toISOString();
   if (currentEditId) {
-    const idx = db.kols.findIndex(k=>k.id===currentEditId);
-    db.kols[idx] = { ...db.kols[idx], ...data, updatedAt: now };
+    const idx = kols.findIndex(k=>k.id===currentEditId);
+    kols[idx] = { ...kols[idx], ...data, updatedAt: now };
     showToast('✅ 已更新','success');
   } else {
     data.id = 'kol_'+Date.now()+'_'+Math.random().toString(36).substr(2,4);
     data.createdAt = now; data.updatedAt = now;
-    db.kols.unshift(data);
+    kols.unshift(data);
     showToast('✅ 已新增網紅！','success');
   }
-  saveData(); hideModal('kol-modal'); render();
+  hideModal('kol-modal'); render();
+  try {
+    const saved = currentEditId ? kols.find(k=>k.id===currentEditId) : kols[0];
+    await apiSave(saved);
+  } catch(e) { showToast('雲端儲存失敗，資料僅在本機快取','error'); console.error(e); }
 }
 
-function deleteKOL(id) {
-  const k = db.kols.find(k=>k.id===id);
+async function deleteKOL(id) {
+  const k = kols.find(k=>k.id===id);
   if (!k || !confirm(`確定要刪除「${k.nickname}」？此動作無法復原。`)) return;
-  db.kols = db.kols.filter(k=>k.id!==id);
-  saveData(); render();
+  kols = kols.filter(k=>k.id!==id);
+  render();
   showToast('已刪除','info');
+  try { await apiDelete(id); } catch(e) { showToast('雲端刪除失敗','error'); console.error(e); }
 }
 
 // ===== DETAIL MODAL =====
@@ -1153,10 +1186,10 @@ function mapRow(row) {
   return k;
 }
 
-function confirmImport() {
+async function confirmImport() {
   if (!importedRows.length) return;
   const now = new Date().toISOString();
-  let added = 0;
+  const newKols = [];
   importedRows.forEach(row => {
     const k = mapRow(row);
     // Skip blank rows, hint rows, and example rows
@@ -1164,13 +1197,17 @@ function confirmImport() {
     if ((k.nickname||'').startsWith('【') || (k.nickname||'').startsWith('範例')) return;
     k.id = 'kol_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
     k.createdAt = now; k.updatedAt = now;
-    db.kols.push(k);
-    added++;
+    newKols.push(k);
   });
-  saveData(); hideModal('import-modal');
+  kols.push(...newKols);
+  hideModal('import-modal');
   currentPage = 1; render();
-  showToast(`✅ 成功匯入 ${added} 位網紅！`,'success');
+  showToast(`✅ 成功匯入 ${newKols.length} 位網紅！正在同步至雲端...`,'success');
   document.getElementById('confirm-import-btn').classList.add('hidden');
+  try {
+    await apiBulkSave(newKols);
+    showToast(`✅ 已同步 ${newKols.length} 筆至 Google Sheets`,'success');
+  } catch(e) { showToast('雲端同步失敗','error'); console.error(e); }
 }
 
 // ===== EXPORT =====
@@ -1474,7 +1511,7 @@ function openGiftBoxModal(kolId, recordId) {
   showModal('giftbox-modal');
 }
 
-function saveGiftBoxRecord() {
+async function saveGiftBoxRecord() {
   const kolId    = document.getElementById('gb-kol-id').value;
   const recordId = document.getElementById('gb-record-id').value;
   const event    = document.getElementById('gb-event').value;
@@ -1495,24 +1532,24 @@ function saveGiftBoxRecord() {
     k.giftBoxRecords.push({ id:'gb_'+Date.now()+'_'+Math.random().toString(36).substr(2,4), event, date, posted, notes });
   }
   k.updatedAt = new Date().toISOString();
-  saveData();
   hideModal('giftbox-modal');
   // 重新渲染禮盒列表（detail modal 仍開著）
   document.getElementById('gift-box-list').innerHTML = renderGiftBoxList(k);
   render();
   showToast('✅ 禮盒紀錄已儲存','success');
+  try { await apiSave(k); } catch(e) { showToast('雲端儲存失敗','error'); console.error(e); }
 }
 
-function deleteGiftBoxRecord(kolId, recordId) {
+async function deleteGiftBoxRecord(kolId, recordId) {
   if (!confirm('確定要刪除這筆禮盒紀錄？')) return;
-  const k = db.kols.find(k => k.id === kolId);
+  const k = kols.find(k => k.id === kolId);
   if (!k) return;
   k.giftBoxRecords = (k.giftBoxRecords||[]).filter(r => r.id !== recordId);
   k.updatedAt = new Date().toISOString();
-  saveData();
   document.getElementById('gift-box-list').innerHTML = renderGiftBoxList(k);
   render();
   showToast('已刪除','info');
+  try { await apiSave(k); } catch(e) { showToast('雲端儲存失敗','error'); console.error(e); }
 }
 
 // ===== MODAL UTILS =====
@@ -1574,8 +1611,7 @@ function showToast(msg, type='info') {
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
-  loadData();
-  render();
+  loadKOLs();
 });
 </script>
 </body>
