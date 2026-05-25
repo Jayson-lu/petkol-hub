@@ -780,15 +780,42 @@ let filters = {
 let sortState = { field:'updatedAt', dir:'desc' };
 
 // ===== STORAGE =====
-async function loadKOLs() {
+const LS_KEY = 'petkol_kols_v1';
+
+function saveToLocalStorage() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(kols)); } catch(e) {}
+}
+
+function loadFromLocalStorage() {
   try {
-    showToast('載入資料中...', 'info');
-    kols = await apiGet();
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) return arr; }
+  } catch(e) {}
+  return null;
+}
+
+async function loadKOLs() {
+  const cached = loadFromLocalStorage();
+  if (cached && cached.length > 0) {
+    kols = cached;
     render();
-    showToast('資料載入完成', 'success');
+    showToast(`已從本機快取載入 ${kols.length} 筆，同步雲端中…`, 'info');
+  } else {
+    showToast('載入資料中...', 'info');
+  }
+  try {
+    const remote = await apiGet();
+    if (remote && remote.length > 0) {
+      kols = remote;
+      saveToLocalStorage();
+      render();
+      showToast(`雲端資料載入完成，共 ${kols.length} 筆`, 'success');
+    } else if (!cached || cached.length === 0) {
+      showToast('尚無資料，請匯入 Excel', 'info');
+    }
   } catch(e) {
-    showToast('載入失敗，請重試', 'error');
-    console.error(e);
+    if (!cached || cached.length === 0) showToast('雲端載入失敗，請匯入資料', 'error');
+    console.error('GAS apiGet error:', e);
   }
 }
 
@@ -1059,6 +1086,7 @@ async function saveKOL() {
     kols.unshift(data);
     showToast('✅ 已新增網紅！','success');
   }
+  saveToLocalStorage();
   hideModal('kol-modal'); render();
   try {
     const saved = currentEditId ? kols.find(k=>k.id===currentEditId) : kols[0];
@@ -1070,6 +1098,7 @@ async function deleteKOL(id) {
   const k = kols.find(k=>k.id===id);
   if (!k || !confirm(`確定要刪除「${k.nickname}」？此動作無法復原。`)) return;
   kols = kols.filter(k=>k.id!==id);
+  saveToLocalStorage();
   render();
   showToast('已刪除','info');
   try { await apiDelete(id); } catch(e) { showToast('雲端刪除失敗','error'); console.error(e); }
@@ -1313,6 +1342,7 @@ async function confirmImport() {
     }
   }
   kols.push(...newKols);
+  saveToLocalStorage();
   hideModal('import-modal');
   currentPage = 1; render();
   showToast(`✅ 成功匯入 ${newKols.length} 位網紅！正在同步至雲端...`,'success');
