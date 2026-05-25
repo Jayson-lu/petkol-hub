@@ -724,22 +724,32 @@ function checkAuth() {
 const API_URL = 'https://script.google.com/macros/s/AKfycbyLMQOlYyO1f6tiXfdT2N3JIO-jG6vez6Vydc2MWYV3puzWnM2yDixcicEuhLo1c_83/exec';
 
 // ── Google Sheets API ──────────────────────────────
+// GAS 有 cross-origin redirect，用 JSONP 讀取、no-cors 寫入
 async function apiGet() {
-  const res = await fetch(API_URL + '?action=getAll');
-  const data = await res.json();
-  return data.kols || [];
+  return new Promise((resolve) => {
+    const cb = 'cb_' + Date.now();
+    window[cb] = (data) => {
+      delete window[cb];
+      document.head.removeChild(s);
+      resolve(data.kols || []);
+    };
+    const s = document.createElement('script');
+    s.onerror = () => { delete window[cb]; document.head.removeChild(s); resolve([]); };
+    s.src = API_URL + '?action=getAll&callback=' + cb;
+    document.head.appendChild(s);
+  });
 }
 async function apiSave(kol) {
   const params = new URLSearchParams({ action: 'save', data: JSON.stringify(kol) });
-  await fetch(API_URL + '?' + params.toString());
+  await fetch(API_URL + '?' + params.toString(), { mode: 'no-cors' });
 }
 async function apiDelete(id) {
-  await fetch(API_URL + '?action=delete&id=' + encodeURIComponent(id));
+  await fetch(API_URL + '?action=delete&id=' + encodeURIComponent(id), { mode: 'no-cors' });
 }
 async function apiBulkSave(kols) {
   for (const kol of kols) {
     const params = new URLSearchParams({ action: 'save', data: JSON.stringify(kol) });
-    await fetch(API_URL + '?' + params.toString());
+    await fetch(API_URL + '?' + params.toString(), { mode: 'no-cors' });
   }
 }
 
