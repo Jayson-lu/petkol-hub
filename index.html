@@ -726,15 +726,18 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbz_i7iBKsSHoehVgsvi3ALE
 // ── Google Sheets API ──────────────────────────────
 // GAS 會從 script.google.com → script.googleusercontent.com cross-origin redirect
 // 需全部用 JSONP (script tag) 才能跟隨 redirect，不可用 fetch
-function jsonpRequest(url) {
-  return new Promise((resolve) => {
-    const cb = 'cbw_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    window[cb] = (data) => { delete window[cb]; s.remove(); resolve(data); };
-    const s = document.createElement('script');
-    s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
-    s.onerror = () => { delete window[cb]; s.remove(); resolve({ error: 'script error' }); };
-    document.head.appendChild(s);
-  });
+async function jsonpRequest(url) {
+  // 改用 fetch 取代 JSONP script tag（JSONP 會被瀏覽器 CSP 阻擋）
+  // GAS 回傳格式為 callback({...})，解析時去掉包裝即可
+  try {
+    const res = await fetch(url + (url.includes('?') ? '&' : '?') + 'callback=_cb_');
+    const text = await res.text();
+    // 移除 _cb_(...) 包裝，取出純 JSON
+    const json = text.replace(/^[^(]*\(/, '').replace(/\)\s*;?\s*$/, '');
+    return JSON.parse(json);
+  } catch(e) {
+    return { error: 'fetch error', detail: e.message };
+  }
 }
 async function apiGet() {
   const data = await jsonpRequest(API_URL + '?action=getAll');
@@ -884,7 +887,7 @@ function getFiltered() {
   }
   if (f.brand !== '全部') kols = kols.filter(k =>
     (k.brands||[]).some(b => b === f.brand || b.includes(f.brand) || f.brand.includes(b)));
-  if (f.petType) kols = kols.filter(k => k.petType === f.petType);
+  if (f.petType) kols = kols.filter(k => (k.petType||'').includes(f.petType));
   if (f.platform) kols = kols.filter(k => {
     const norm = normalizePlatform(k.mainPlatform||'');
     if (norm === f.platform) return true;
