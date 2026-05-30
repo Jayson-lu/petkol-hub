@@ -1120,6 +1120,18 @@ async function saveKOL() {
     else if (data.blog) data.mainPlatform = '部落格';
   }
   if (!data.mainPlatform) { showToast('請選擇主要平台','error'); return; }
+
+  // ── 重複偵測：新增時以 Instagram 帳號比對 ──
+  if (!currentEditId && data.instagram) {
+    const normIG = s => s.replace(/^https?:\/\/(www\.)?instagram\.com\//i,'').replace(/\/$|@/g,'').trim().toLowerCase();
+    const dup = kols.find(k => k.instagram && normIG(k.instagram) === normIG(data.instagram));
+    if (dup) {
+      const ok = confirm(`⚠️ Instagram「${data.instagram}」已有一筆資料：\n「${dup.nickname}」\n\n點「確定」→ 更新現有資料\n點「取消」→ 放棄新增`);
+      if (!ok) return;
+      currentEditId = dup.id;  // 切換為更新模式
+    }
+  }
+
   const now = new Date().toISOString();
   if (currentEditId) {
     const idx = kols.findIndex(k=>k.id===currentEditId);
@@ -1375,15 +1387,31 @@ async function confirmImport() {
     k.createdAt = now; k.updatedAt = now;
     newKols.push(k);
   });
-  // ── 重複偵測：以「收件名」比對現有資料 ──
-  const existingNames = new Set(kols.map(k => (k.shippingName||'').trim()).filter(Boolean));
-  const duplicates = newKols.filter(k => { const n=(k.shippingName||'').trim(); return n && existingNames.has(n); });
+  // ── 重複偵測：以 Instagram 帳號比對現有資料（最可靠唯一識別碼）──
+  const normIG = s => (s||'').replace(/^https?:\/\/(www\.)?instagram\.com\//i,'').replace(/\/$|@/g,'').trim().toLowerCase();
+  const existingIGs = new Set(kols.map(k => normIG(k.instagram)).filter(Boolean));
+  const duplicates = newKols.filter(k => { const ig = normIG(k.instagram); return ig && existingIGs.has(ig); });
   if (duplicates.length > 0) {
-    const list = duplicates.map(k => '• ' + (k.nickname||k.shippingName) + '（收件名：' + k.shippingName + '）').join('\n');
-    const choice = confirm('⚠️ 發現 ' + duplicates.length + ' 位網紅可能已存在系統中（依收件人姓名比對）：\n\n' + list + '\n\n點「確定」→ 仍然全部匙入（包含重複）\n點「取消」→ 僅匙入非重複的 ' + (newKols.length - duplicates.length) + ' 位');
+    const list = duplicates.map(k => '• ' + (k.nickname||'（無暱稱）') + '（IG：' + (k.instagram||'') + '）').join('\n');
+    const choice = confirm('⚠️ 發現 ' + duplicates.length + ' 位網紅已存在系統中（依 Instagram 帳號比對）：\n\n' + list + '\n\n點「確定」→ 更新現有資料（覆蓋）\n點「取消」→ 略過重複，僅匯入新的 ' + (newKols.length - duplicates.length) + ' 位');
     if (!choice) {
-      const dupNames = new Set(duplicates.map(k => (k.shippingName||'').trim()));
-      newKols.splice(0, newKols.length, ...newKols.filter(k => !dupNames.has((k.shippingName||'').trim())));
+      const dupIGs = new Set(duplicates.map(k => normIG(k.instagram)));
+      newKols.splice(0, newKols.length, ...newKols.filter(k => !dupIGs.has(normIG(k.instagram))));
+    } else {
+      // 覆蓋：用現有 ID 取代新 ID，讓 GAS saveKOL 更新而非新增
+      duplicates.forEach(newK => {
+        const existingK = kols.find(k => normIG(k.instagram) === normIG(newK.instagram));
+        if (existingK) {
+          newK.id = existingK.id;  // 沿用舊 ID → GAS 會更新而非新增
+          newK.createdAt = existingK.createdAt;
+          const idx = kols.findIndex(k => k.id === existingK.id);
+          if (idx >= 0) kols[idx] = { ...existingK, ...newK };
+        }
+      });
+      newKols.splice(0, newKols.length, ...newKols.filter(k => {
+        const ig = normIG(k.instagram);
+        return !ig || !existingIGs.has(ig) || duplicates.some(d => d.id === k.id);
+      }));
     }
   }
   kols.push(...newKols);
