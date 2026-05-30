@@ -1121,12 +1121,23 @@ async function saveKOL() {
   }
   if (!data.mainPlatform) { showToast('請選擇主要平台','error'); return; }
 
-  // ── 重複偵測：新增時以 Instagram 帳號比對 ──
-  if (!currentEditId && data.instagram) {
-    const normIG = s => s.replace(/^https?:\/\/(www\.)?instagram\.com\//i,'').replace(/\/$|@/g,'').trim().toLowerCase();
-    const dup = kols.find(k => k.instagram && normIG(k.instagram) === normIG(data.instagram));
+  // ── 重複偵測：新增時以社群帳號比對（Instagram / Facebook / YouTube / TikTok）──
+  if (!currentEditId) {
+    const normURL = s => (s||'').toLowerCase().trim().replace(/^https?:\/\/(www\.)?/,'').replace(/\/+$/,'');
+    const socialFields = ['instagram','facebook','youtube','tiktok','blog'];
+    let dup = null, dupField = '', dupVal = '';
+    outer: for (const field of socialFields) {
+      if (!data[field]) continue;
+      const newVal = normURL(data[field]);
+      for (const k of kols) {
+        if (k[field] && normURL(k[field]) === newVal) {
+          dup = k; dupField = field; dupVal = data[field]; break outer;
+        }
+      }
+    }
     if (dup) {
-      const ok = confirm(`⚠️ Instagram「${data.instagram}」已有一筆資料：\n「${dup.nickname}」\n\n點「確定」→ 更新現有資料\n點「取消」→ 放棄新增`);
+      const fieldLabel = {instagram:'Instagram',facebook:'Facebook',youtube:'YouTube',tiktok:'TikTok',blog:'部落格'}[dupField];
+      const ok = confirm(`⚠️ ${fieldLabel}「${dupVal}」已有一筆資料：\n「${dup.nickname}」\n\n點「確定」→ 更新現有資料\n點「取消」→ 放棄新增`);
       if (!ok) return;
       currentEditId = dup.id;  // 切換為更新模式
     }
@@ -1388,7 +1399,7 @@ async function confirmImport() {
     newKols.push(k);
   });
   // ── 重複偵測：以 Instagram 帳號比對現有資料（最可靠唯一識別碼）──
-  const normIG = s => (s||'').replace(/^https?:\/\/(www\.)?instagram\.com\//i,'').replace(/\/$|@/g,'').trim().toLowerCase();
+  const normIG = s => (s||'').replace(/^https?:\/\/(www\.)?instagram\.com\//i,'').replace(/^(www\.)?instagram\.com\//i,'').replace(/\/$|@/g,'').trim().toLowerCase();
   const existingIGs = new Set(kols.map(k => normIG(k.instagram)).filter(Boolean));
   const duplicates = newKols.filter(k => { const ig = normIG(k.instagram); return ig && existingIGs.has(ig); });
   if (duplicates.length > 0) {
