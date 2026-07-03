@@ -1411,6 +1411,17 @@ async function confirmImport() {
 
   if (skippedBlank > 0) showToast(`略過 ${skippedBlank} 筆空白列`, 'info');
 
+  // ── Email 格式驗證：空白或格式錯誤的列不允許匯入 ──
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const badEmail = newKols.filter(k => !k.email || !emailRegex.test(k.email.trim()));
+  if (badEmail.length > 0) {
+    const list = badEmail.map(k => '• ' + (k.nickname||'（無暱稱）') + '　Email：' + (k.email||'未填寫')).join('\n');
+    const proceed = confirm(`⚠️ 以下 ${badEmail.length} 筆 Email 未填寫或格式錯誤，無法匯入：\n\n${list}\n\n點「確定」→ 略過這些列，繼續匯入其餘 ${newKols.length - badEmail.length} 筆\n點「取消」→ 停止匯入，請修正後再試`);
+    if (!proceed) return;
+    newKols.splice(0, newKols.length, ...newKols.filter(k => k.email && emailRegex.test(k.email.trim())));
+  }
+  if (!newKols.length) { showToast('沒有可匯入的資料', 'error'); return; }
+
   // ── 批次內部去重（同一份 Excel 內相同 email 只保留第一筆）──
   const normEmail = s => (s||'').toLowerCase().trim();
   const seenEmails = new Set();
