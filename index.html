@@ -305,14 +305,6 @@ tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
       <div class="section-title">帳號資訊</div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <label class="form-label">主要平台 <span class="text-red-500">*</span></label>
-          <select name="mainPlatform" class="form-select">
-            <option value="">未設定</option>
-            <option>Instagram</option><option>Facebook</option>
-            <option>部落格</option><option>YouTube</option><option>TikTok</option>
-          </select>
-        </div>
-        <div>
           <label class="form-label">Instagram 連結</label>
           <input name="instagram" class="form-input" placeholder="https://instagram.com/...">
         </div>
@@ -1030,7 +1022,7 @@ function renderTable(kols) {
       <td class="px-3 py-2.5" onclick="event.stopPropagation()">
         <div class="flex gap-1">
           <button onclick="openEditModal('${k.id}')" class="hover:bg-teal-50 p-1.5 rounded transition text-sm" title="編輯">✏️</button>
-          ${ADMIN_EMAILS.includes(currentUserEmail) ? `<button onclick="deleteKOL('${k.id}')" class="hover:bg-red-50 p-1.5 rounded transition text-sm" title="刪除">🗑️</button>` : ''}
+          <button onclick="deleteKOL('${k.id}')" class="hover:bg-red-50 p-1.5 rounded transition text-sm" title="刪除">🗑️</button>
         </div>
       </td>
     </tr>`;
@@ -1118,27 +1110,36 @@ async function saveKOL() {
     else if (data.tiktok) data.mainPlatform = 'TikTok';
     else if (data.blog) data.mainPlatform = '部落格';
   }
-  if (!data.mainPlatform) { showToast('請選擇主要平台','error'); return; }
+  if (!data.mainPlatform) { showToast('請填寫至少一個社群連結','error'); return; }
 
-  // ── 重複偵測：新增時以社群帳號比對（Instagram / Facebook / YouTube / TikTok）──
+  // ── 重複偵測：新增時以 Email 為主、社群連結為備用 ──
   if (!currentEditId) {
+    const normE = s => (s||'').toLowerCase().trim();
     const normURL = s => (s||'').toLowerCase().trim().replace(/^https?:\/\/(www\.)?/,'').replace(/\/+$/,'');
-    const socialFields = ['instagram','facebook','youtube','tiktok','blog'];
-    let dup = null, dupField = '', dupVal = '';
-    outer: for (const field of socialFields) {
-      if (!data[field]) continue;
-      const newVal = normURL(data[field]);
-      for (const k of kols) {
-        if (k[field] && normURL(k[field]) === newVal) {
-          dup = k; dupField = field; dupVal = data[field]; break outer;
+    let dup = null, dupLabel = '', dupVal = '';
+    // 先查 email
+    if (data.email) {
+      dup = kols.find(k => k.email && normE(k.email) === normE(data.email));
+      if (dup) { dupLabel = 'Email'; dupVal = data.email; }
+    }
+    // email 沒有，再查社群連結
+    if (!dup) {
+      const socialFields = ['instagram','facebook','youtube','tiktok','blog'];
+      const labels = {instagram:'Instagram',facebook:'Facebook',youtube:'YouTube',tiktok:'TikTok',blog:'部落格'};
+      outer: for (const field of socialFields) {
+        if (!data[field]) continue;
+        const newVal = normURL(data[field]);
+        for (const k of kols) {
+          if (k[field] && normURL(k[field]) === newVal) {
+            dup = k; dupLabel = labels[field]; dupVal = data[field]; break outer;
+          }
         }
       }
     }
     if (dup) {
-      const fieldLabel = {instagram:'Instagram',facebook:'Facebook',youtube:'YouTube',tiktok:'TikTok',blog:'部落格'}[dupField];
-      const ok = confirm(`⚠️ ${fieldLabel}「${dupVal}」已有一筆資料：\n「${dup.nickname}」\n\n點「確定」→ 更新現有資料\n點「取消」→ 放棄新增`);
+      const ok = confirm(`⚠️ ${dupLabel}「${dupVal}」已有一筆資料：\n「${dup.nickname}」\n\n點「確定」→ 更新現有資料\n點「取消」→ 放棄新增`);
       if (!ok) return;
-      currentEditId = dup.id;  // 切換為更新模式
+      currentEditId = dup.id;
     }
   }
 
@@ -1388,39 +1389,73 @@ async function confirmImport() {
   if (!importedRows.length) return;
   const now = new Date().toISOString();
   const newKols = [];
+  let skippedBlank = 0;
+
+  // 偵測未識別的欄位名稱
+  const firstRow = importedRows[0] || {};
+  const unrecognized = Object.keys(firstRow).filter(h => !EXCEL_MAP[h.trim()] && h.trim() !== '');
+  if (unrecognized.length > 0) {
+    showToast('⚠️ 以下欄位名稱未被識別，資料不會匯入：' + unrecognized.join('、'), 'error');
+  }
+
   importedRows.forEach(row => {
     const k = mapRow(row);
-    // Skip blank rows, hint rows, and example rows
-    if (!k.nickname && !k.realName) return;
-    if ((k.nickname||'').startsWith('【') || (k.nickname||'').startsWith('範例')) return;
+    // 過濾完全空白列、範例列
+    const hasData = Object.values(k).some(v => Array.isArray(v) ? v.length > 0 : (v && v !== 0 && v !== ''));
+    if (!hasData) { skippedBlank++; return; }
+    if ((k.nickname||'').startsWith('【') || (k.nickname||'').startsWith('範例')) { skippedBlank++; return; }
     k.id = 'kol_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
     k.createdAt = now; k.updatedAt = now;
     newKols.push(k);
   });
-  // ── 重複偵測：以 Instagram 帳號比對現有資料（最可靠唯一識別碼）──
+
+  if (skippedBlank > 0) showToast(`略過 ${skippedBlank} 筆空白列`, 'info');
+
+  // ── 批次內部去重（同一份 Excel 內相同 email 只保留第一筆）──
+  const normEmail = s => (s||'').toLowerCase().trim();
+  const seenEmails = new Set();
+  let inBatchDup = 0;
+  newKols.splice(0, newKols.length, ...newKols.filter(k => {
+    const e = normEmail(k.email);
+    if (!e) return true;
+    if (seenEmails.has(e)) { inBatchDup++; return false; }
+    seenEmails.add(e); return true;
+  }));
+  if (inBatchDup > 0) showToast(`檔案內有 ${inBatchDup} 筆重複 email，已自動保留第一筆`, 'info');
+
+  // ── 與現有資料去重：以 Email 為主，IG 為備用 ──
   const normIG = s => (s||'').replace(/^https?:\/\/(www\.)?instagram\.com\//i,'').replace(/^(www\.)?instagram\.com\//i,'').replace(/\/$|@/g,'').trim().toLowerCase();
+  const existingEmails = new Set(kols.map(k => normEmail(k.email)).filter(Boolean));
   const existingIGs = new Set(kols.map(k => normIG(k.instagram)).filter(Boolean));
-  const duplicates = newKols.filter(k => { const ig = normIG(k.instagram); return ig && existingIGs.has(ig); });
+  const duplicates = newKols.filter(k => {
+    const e = normEmail(k.email); const ig = normIG(k.instagram);
+    return (e && existingEmails.has(e)) || (!e && ig && existingIGs.has(ig));
+  });
   if (duplicates.length > 0) {
-    const list = duplicates.map(k => '• ' + (k.nickname||'（無暱稱）') + '（IG：' + (k.instagram||'') + '）').join('\n');
-    const choice = confirm('⚠️ 發現 ' + duplicates.length + ' 位網紅已存在系統中（依 Instagram 帳號比對）：\n\n' + list + '\n\n點「確定」→ 更新現有資料（覆蓋）\n點「取消」→ 略過重複，僅匯入新的 ' + (newKols.length - duplicates.length) + ' 位');
+    const list = duplicates.map(k => '• ' + (k.nickname||'（無暱稱）') + '（' + (k.email ? 'Email：'+k.email : 'IG：'+(k.instagram||'')) + '）').join('\n');
+    const choice = confirm('⚠️ 發現 ' + duplicates.length + ' 位網紅已存在系統中（依 Email / IG 比對）：\n\n' + list + '\n\n點「確定」→ 更新現有資料（覆蓋）\n點「取消」→ 略過重複，僅匯入新的 ' + (newKols.length - duplicates.length) + ' 位');
     if (!choice) {
-      const dupIGs = new Set(duplicates.map(k => normIG(k.instagram)));
-      newKols.splice(0, newKols.length, ...newKols.filter(k => !dupIGs.has(normIG(k.instagram))));
+      newKols.splice(0, newKols.length, ...newKols.filter(k => {
+        const e = normEmail(k.email); const ig = normIG(k.instagram);
+        return !((e && existingEmails.has(e)) || (!e && ig && existingIGs.has(ig)));
+      }));
     } else {
       // 覆蓋：用現有 ID 取代新 ID，讓 GAS saveKOL 更新而非新增
       duplicates.forEach(newK => {
-        const existingK = kols.find(k => normIG(k.instagram) === normIG(newK.instagram));
+        const e = normEmail(newK.email); const ig = normIG(newK.instagram);
+        const existingK = kols.find(k =>
+          (e && normEmail(k.email) === e) || (!e && ig && normIG(k.instagram) === ig)
+        );
         if (existingK) {
-          newK.id = existingK.id;  // 沿用舊 ID → GAS 會更新而非新增
+          newK.id = existingK.id;
           newK.createdAt = existingK.createdAt;
           const idx = kols.findIndex(k => k.id === existingK.id);
           if (idx >= 0) kols[idx] = { ...existingK, ...newK };
         }
       });
       newKols.splice(0, newKols.length, ...newKols.filter(k => {
-        const ig = normIG(k.instagram);
-        return !ig || !existingIGs.has(ig) || duplicates.some(d => d.id === k.id);
+        const e = normEmail(k.email); const ig = normIG(k.instagram);
+        return !((e && existingEmails.has(e)) || (!e && ig && existingIGs.has(ig))) || duplicates.some(d => d.id === k.id);
       }));
     }
   }
