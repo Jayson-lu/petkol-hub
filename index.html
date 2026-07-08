@@ -259,7 +259,7 @@ tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
           <input name="nickname" class="form-input" placeholder="例：小白的媽媽">
         </div>
         <div>
-          <label class="form-label">真實姓名</label>
+          <label class="form-label">真實姓名 <span class="text-red-500">*</span></label>
           <input name="realName" class="form-input" placeholder="例：王小明">
         </div>
       </div>
@@ -285,14 +285,14 @@ tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
       <div class="section-title">寵物資訊</div>
       <div class="grid grid-cols-3 gap-3 mb-4">
         <div>
-          <label class="form-label">寵物種類</label>
+          <label class="form-label">寵物種類 <span class="text-red-500">*</span></label>
           <select name="petType" class="form-select">
             <option value="">未設定</option>
             <option>貓</option><option>狗</option><option>貓&狗</option><option>其他</option>
           </select>
         </div>
         <div>
-          <label class="form-label">寵物名稱</label>
+          <label class="form-label">寵物名稱 <span class="text-red-500">*</span></label>
           <input name="petName" class="form-input" placeholder="例：小白">
         </div>
         <div>
@@ -348,16 +348,12 @@ tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
       <div class="section-title">聯繫方式</div>
       <div class="grid grid-cols-3 gap-3 mb-4">
         <div>
-          <label class="form-label">Email</label>
+          <label class="form-label">Email <span class="text-red-500">*</span></label>
           <input name="email" type="email" class="form-input" placeholder="name@gmail.com">
         </div>
         <div>
           <label class="form-label">Line ID</label>
           <input name="lineId" class="form-input" placeholder="line_id_here">
-        </div>
-        <div>
-          <label class="form-label">電話</label>
-          <input name="phone" class="form-input" placeholder="0912345678">
         </div>
       </div>
 
@@ -414,7 +410,7 @@ tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
         </div>
       </div>
       <div class="mb-3">
-        <label class="form-label">曾合作品牌（可複選）</label>
+        <label class="form-label">曾合作品牌（可複選）<span class="text-red-500"> *</span></label>
         <div class="flex gap-3 flex-wrap">
           <label class="flex items-center gap-1.5 text-sm cursor-pointer">
             <input type="checkbox" class="brand-check rounded" value="毛孩時代">🐕 毛孩時代
@@ -462,21 +458,21 @@ tr.kol-row:hover { background: #f0fdfa; cursor:pointer; }
       <div class="section-title">收件資訊</div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <label class="form-label">收件名</label>
+          <label class="form-label">收件名 <span class="text-red-500">*</span></label>
           <input name="shippingName" class="form-input" placeholder="收件人姓名">
         </div>
         <div>
-          <label class="form-label">收件電話</label>
+          <label class="form-label">收件電話 <span class="text-red-500">*</span></label>
           <input name="shippingPhone" class="form-input" placeholder="0912345678">
         </div>
       </div>
       <div class="grid grid-cols-3 gap-3 mb-3">
         <div class="col-span-1">
-          <label class="form-label">郵遞區號</label>
+          <label class="form-label">郵遞區號 <span class="text-red-500">*</span></label>
           <input name="shippingPostcode" class="form-input" placeholder="100">
         </div>
         <div class="col-span-2">
-          <label class="form-label">收件地址</label>
+          <label class="form-label">收件地址 <span class="text-red-500">*</span></label>
           <input name="shippingAddress" class="form-input" placeholder="台北市中正區...">
         </div>
       </div>
@@ -1058,8 +1054,8 @@ function openEditModal(id) {
   currentEditId = id;
   document.getElementById('modal-title').textContent = '編輯網紅';
   const f = document.getElementById('kol-form');
-  ['nickname','realName','gender','petType','petName','petBreed','mainPlatform',
-   'instagram','facebook','blog','youtube','tiktok','email','lineId','phone',
+  ['nickname','realName','gender','petType','petName','petBreed',
+   'instagram','facebook','blog','youtube','tiktok','email','lineId',
    'priceAdvertiser','status','reliability','contentQuality',
    'shippingName','shippingPhone','shippingPostcode','shippingAddress','notes'].forEach(field => {
     const el = f.querySelector(`[name="${field}"]`);
@@ -1082,8 +1078,8 @@ function openEditModal(id) {
 async function saveKOL() {
   const f = document.getElementById('kol-form');
   const data = {};
-  ['nickname','realName','gender','petType','petName','petBreed','mainPlatform',
-   'instagram','facebook','blog','youtube','tiktok','email','lineId','phone',
+  ['nickname','realName','gender','petType','petName','petBreed',
+   'instagram','facebook','blog','youtube','tiktok','email','lineId',
    'priceAdvertiser','status','reliability','contentQuality',
    'shippingName','shippingPhone','shippingPostcode','shippingAddress','notes'].forEach(field => {
     const el = f.querySelector(`[name="${field}"]`);
@@ -1101,6 +1097,17 @@ async function saveKOL() {
   data.tags = [...currentTags];
 
   if (!data.nickname) { showToast('請填寫網紅暱稱','error'); return; }
+  if (!data.email) { showToast('請填寫 Email','error'); return; }
+  const emailRxForm = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRxForm.test(data.email)) { showToast('Email 格式錯誤','error'); return; }
+  if (!data.realName) { showToast('請填寫真實姓名','error'); return; }
+  if (!data.petType) { showToast('請選擇寵物種類','error'); return; }
+  if (!data.petName) { showToast('請填寫寵物名稱','error'); return; }
+  if (!data.brands || data.brands.length === 0) { showToast('請選擇至少一個合作品牌','error'); return; }
+  if (!data.shippingName) { showToast('請填寫收件名','error'); return; }
+  if (!data.shippingPhone) { showToast('請填寫收件電話','error'); return; }
+  if (!data.shippingPostcode) { showToast('請填寫郵遞區號','error'); return; }
+  if (!data.shippingAddress) { showToast('請填寫收件地址','error'); return; }
   if (data.mainPlatform) data.mainPlatform = normalizePlatform(data.mainPlatform);
   // 若未填主要平台，依連結自動推斷
   if (!data.mainPlatform) {
@@ -1261,7 +1268,6 @@ const EXCEL_MAP = {
   '寵物種類':'petType','寵物類型':'petType',
   '寵物名':'petName','寵物名稱':'petName',
   '品種':'petBreed','寵物品種':'petBreed',
-  '主要平台':'mainPlatform','平台':'mainPlatform',
   'Instagram':'instagram','IG':'instagram','IG連結':'instagram',
   'Facebook':'facebook','FB':'facebook','FB連結':'facebook','粉絲頁':'facebook',
   '部落格':'blog','部落格網址':'blog','Blog':'blog',
@@ -1269,7 +1275,6 @@ const EXCEL_MAP = {
   'TikTok':'tiktok',
   'Email':'email','電子郵件':'email',
   'Line ID':'lineId','LINE ID':'lineId','Line':'lineId','Line Id':'lineId',
-  '電話':'phone','手機':'phone','手機號碼':'phone',
   '追蹤數':'followers','粉絲數':'followers',
   '互動率':'engagementRate','互動率(%)':'engagementRate',
   '平均觀看數':'avgViews','Reels平均觀看':'avgViews',
@@ -1422,6 +1427,37 @@ async function confirmImport() {
   }
   if (!newKols.length) { showToast('沒有可匯入的資料', 'error'); return; }
 
+  // ── 必填欄位驗證 ──
+  const REQUIRED_FIELDS = [
+    { key:'realName', label:'真實姓名' },
+    { key:'petType',  label:'寵物種類' },
+    { key:'petName',  label:'寵物名' },
+    { key:'brands',   label:'合作品牌' },
+    { key:'shippingName',     label:'收件名' },
+    { key:'shippingPhone',    label:'收件電話' },
+    { key:'shippingPostcode', label:'郵遞區號' },
+    { key:'shippingAddress',  label:'收件地址' },
+  ];
+  const missingRequired = newKols.filter(k =>
+    REQUIRED_FIELDS.some(f => {
+      const v = k[f.key];
+      return Array.isArray(v) ? v.length === 0 : !v;
+    })
+  );
+  if (missingRequired.length > 0) {
+    const list = missingRequired.map(k => {
+      const missing = REQUIRED_FIELDS.filter(f => {
+        const v = k[f.key]; return Array.isArray(v) ? v.length === 0 : !v;
+      }).map(f => f.label).join('、');
+      return '• ' + (k.nickname||'（無暱稱）') + '　缺：' + missing;
+    }).join('\n');
+    const proceed = confirm(`⚠️ 以下 ${missingRequired.length} 筆缺少必填欄位，無法匯入：\n\n${list}\n\n點「確定」→ 略過這些列，繼續匯入其餘 ${newKols.length - missingRequired.length} 筆\n點「取消」→ 停止匯入，請補齊後再試`);
+    if (!proceed) return;
+    const missingIds = new Set(missingRequired.map(k => k.id));
+    newKols.splice(0, newKols.length, ...newKols.filter(k => !missingIds.has(k.id)));
+  }
+  if (!newKols.length) { showToast('沒有可匯入的資料', 'error'); return; }
+
   // ── 批次內部去重（同一份 Excel 內相同 email 只保留第一筆）──
   const normEmail = s => (s||'').toLowerCase().trim();
   const seenEmails = new Set();
@@ -1486,18 +1522,20 @@ async function confirmImport() {
 function exportExcel() {
   const filtered = getFiltered();
   const rows = filtered.map(k => ({
-    '暱稱':k.nickname||'','真實姓名':k.realName||'','性別':k.gender||'',
-    '寵物種類':k.petType||'','寵物名':k.petName||'','品種':k.petBreed||'',
-    '主要平台':k.mainPlatform||'','Instagram':k.instagram||'','Facebook':k.facebook||'',
+    'Email':k.email||'','暱稱':k.nickname||'','真實姓名':k.realName||'',
+    '寵物種類':k.petType||'','寵物名':k.petName||'',
+    '合作品牌':(k.brands||[]).join(','),
+    '收件名':k.shippingName||'','收件電話':k.shippingPhone||'','郵遞區號':k.shippingPostcode||'','收件地址':k.shippingAddress||'',
+    '性別':k.gender||'','品種':k.petBreed||'',
+    'Instagram':k.instagram||'','Facebook':k.facebook||'',
     '部落格':k.blog||'','YouTube':k.youtube||'','TikTok':k.tiktok||'',
-    'Email':k.email||'','Line ID':k.lineId||'','電話':k.phone||'',
+    'Line ID':k.lineId||'',
     '追蹤數':k.followers||0,'互動率(%)':k.engagementRate||0,
     '平均觀看數':k.avgViews||0,'部落格月流量':k.blogMonthlyViews||0,
     '文章收費':k.priceArticle||0,'圖文收費':k.pricePhoto||0,'影片收費':k.priceVideo||0,
     '廣告主計費週期':k.priceAdvertiser||'','接受無酬':k.acceptFree?'是':'否',
-    '合作方式':(k.collabTypes||[]).join(','),'合作品牌':(k.brands||[]).join(','),
+    '合作方式':(k.collabTypes||[]).join(','),
     '狀態':k.status||'','評分':k.rating||0,'配合度':k.reliability||'','內容品質':k.contentQuality||'',
-    '收件名':k.shippingName||'','收件電話':k.shippingPhone||'','郵遞區號':k.shippingPostcode||'','收件地址':k.shippingAddress||'',
     '標籤':(k.tags||[]).join(','),'備註':k.notes||''
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
@@ -1509,31 +1547,36 @@ function exportExcel() {
 
 function downloadTemplate() {
   const HEADERS = [
-    '暱稱','真實姓名','性別','寵物種類','寵物名','品種',
-    '主要平台','Instagram','Facebook','部落格','YouTube','TikTok',
-    'Email','Line ID','電話',
+    'Email','暱稱','真實姓名','寵物種類','寵物名','合作品牌',
+    '收件名','收件電話','郵遞區號','收件地址',
+    '性別','品種','Instagram','Facebook','部落格','YouTube','TikTok','Line ID',
     '追蹤數','互動率(%)','平均觀看數','部落格月流量',
     '文章收費','圖文收費','影片收費','廣告主計費週期','接受無酬',
-    '合作方式','合作品牌','狀態','評分','配合度','內容品質',
-    '收件名','收件電話','郵遞區號','收件地址','標籤','備註'
+    '合作方式','狀態','評分','配合度','內容品質','標籤','備註'
   ];
 
   // Row 2: 提示列（灰字說明可填入的值）
   const hintRow = {
+    'Email':            '【必填】name@gmail.com',
     '暱稱':             '【必填】',
+    '真實姓名':         '【必填】',
+    '寵物種類':         '【必填】貓 / 狗 / 貓&狗 / 其他',
+    '寵物名':           '【必填】',
+    '合作品牌':         '【必填】毛孩時代 / 奧沛 / 優固倍 / 愛旺斯（多個用逗號分隔）',
+    '收件名':           '【必填】',
+    '收件電話':         '【必填】',
+    '郵遞區號':         '【必填】',
+    '收件地址':         '【必填】',
     '性別':             '男 / 女',
-    '寵物種類':         '貓 / 狗 / 貓&狗 / 其他',
-    '主要平台':         'Instagram / Facebook / 部落格 / YouTube / TikTok',
     '追蹤數':           '數字，例：50000',
     '互動率(%)':        '數字，例：3.5（不用加%）',
     '接受無酬':         '是 / 否',
     '合作方式':         '部落格文章, 圖文素材, 影片素材（多個用逗號分隔）',
-    '合作品牌':         '毛孩時代 / 奧沛 / 優固倍 / 愛旺斯（多個用逗號分隔）',
     '狀態':             '潛在合作 / 聯繫中 / 合作中 / 已完成 / 黑名單',
     '評分':             '數字 1–5',
     '配合度':           '高 / 中 / 低',
     '內容品質':         '優 / 良 / 普通 / 差',
-    '廣告主計費週期':         '按篇計費 / 月費 / 季費 / 按活動計費 / 買斷授權 / 無酬',
+    '廣告主計費週期':   '按篇計費 / 月費 / 季費 / 按活動計費 / 買斷授權 / 無酬',
     '標籤':             '自由填寫，多個用逗號分隔，例：治癒系、保健品',
   };
   // Fill other keys with ''
@@ -1547,7 +1590,6 @@ function downloadTemplate() {
     '寵物種類': '狗',
     '寵物名': '小白',
     '品種': '柴犬',
-    '主要平台': 'Instagram',
     'Instagram': 'https://instagram.com/example',
     'Facebook': '',
     '部落格': '',
@@ -1555,7 +1597,6 @@ function downloadTemplate() {
     'TikTok': '',
     'Email': 'example@gmail.com',
     'Line ID': 'example123',
-    '電話': '0912345678',
     '追蹤數': 50000,
     '互動率(%)': 3.5,
     '平均觀看數': 10000,
@@ -1604,7 +1645,7 @@ function downloadTemplate() {
 
   // Set column widths
   ws1['!cols'] = HEADERS.map(h => {
-    const wide = ['暱稱','主要平台','Instagram','Facebook','部落格','合作方式','合作品牌','廣告主計費週期','收件地址','備註','標籤'];
+    const wide = ['Email','暱稱','Instagram','Facebook','部落格','合作方式','合作品牌','廣告主計費週期','收件地址','備註','標籤'];
     return { wch: wide.includes(h) ? 28 : 14 };
   });
   ws1['!rows'] = [{ hpt: 16 }, { hpt: 16 }, { hpt: 16 }];
@@ -1614,7 +1655,6 @@ function downloadTemplate() {
     { '欄位名稱':'暱稱',       '填寫規則':'自由填寫',                            '可填入的值':'任意文字',                                                 '備註':'唯一必填欄位' },
     { '欄位名稱':'性別',       '填寫規則':'固定選項',                            '可填入的值':'男 / 女',                                                  '備註':'' },
     { '欄位名稱':'寵物種類',   '填寫規則':'固定選項',                            '可填入的值':'貓 / 狗 / 貓&狗 / 其他',                                   '備註':'' },
-    { '欄位名稱':'主要平台',   '填寫規則':'固定選項',                            '可填入的值':'Instagram / Facebook / 部落格 / YouTube / TikTok',         '備註':'' },
     { '欄位名稱':'追蹤數',     '填寫規則':'純數字',                              '可填入的值':'例：50000',                                                '備註':'不要加逗號或文字' },
     { '欄位名稱':'互動率(%)',  '填寫規則':'純數字（不加%）',                     '可填入的值':'例：3.5',                                                  '備註':'' },
     { '欄位名稱':'接受無酬',   '填寫規則':'固定選項',                            '可填入的值':'是 / 否',                                                  '備註':'' },
